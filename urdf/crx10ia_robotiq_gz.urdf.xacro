@@ -1,0 +1,65 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://wiki.ros.org/xacro" name="crx10ia">
+
+  <xacro:arg name="simulation_controllers" default="" />
+  <!-- Set false to spawn the bare CRX-10iA without the gripper attached. -->
+  <xacro:arg name="use_robotiq_gripper" default="true" />
+
+  <xacro:include filename="$(find fanuc_crx_description)/urdf/crx10ia_urdf_macro.xacro"/>
+  <xacro:include filename="$(find ros_plc_sim)/urdf/crx_gripper_gz_ros2_control_macro.xacro"/>
+  <xacro:include filename="$(find ros_plc_sim)/urdf/robotiq_2f_85_simple_parallel.urdf.xacro"/>
+
+  <xacro:property name="use_rq_gripper" value="$(arg use_robotiq_gripper)" />
+
+  <link name="world"/>
+  <link name="end_effector"/>
+
+  <xacro:crx10ia parent="world" child="end_effector" prefix="">
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </xacro:crx10ia>
+
+  <!-- Gripper mounts on fanuc_flange (Z-out tool frame); no adapter plate modeled yet. -->
+  <xacro:if value="${use_rq_gripper == True or use_rq_gripper == 'true'}">
+    <xacro:robotiq_gripper
+      name="crx10ia"
+      prefix=""
+      parent="fanuc_flange"
+      include_ros2_control="false"
+      sim_gazebo="false"
+      use_fake_hardware="false"
+    >
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </xacro:robotiq_gripper>
+  </xacro:if>
+
+  <xacro:crx_gripper_gz_control name="crx10ia" prefix="" use_robotiq_gripper="$(arg use_robotiq_gripper)"/>
+
+  <gazebo reference="base_link">
+    <selfCollide>false</selfCollide>
+  </gazebo>
+  <gazebo reference="J1_link">
+    <selfCollide>false</selfCollide>
+  </gazebo>
+  <gazebo reference="J2_link">
+    <selfCollide>false</selfCollide>
+  </gazebo>
+  <gazebo reference="J3_link">
+    <selfCollide>false</selfCollide>
+  </gazebo>
+  <gazebo reference="J4_link">
+    <selfCollide>false</selfCollide>
+  </gazebo>
+  <gazebo reference="J5_link">
+    <selfCollide>false</selfCollide>
+  </gazebo>
+  <gazebo reference="J6_link">
+    <selfCollide>false</selfCollide>
+  </gazebo>
+
+  <gazebo>
+    <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+      <parameters>$(arg simulation_controllers)</parameters>
+    </plugin>
+  </gazebo>
+
+</robot>
