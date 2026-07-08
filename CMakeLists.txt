@@ -9,7 +9,9 @@ install(
 )
 
 install(
-  PROGRAMS scripts/crx_pick_place.py
+  PROGRAMS
+    scripts/crx_pick_place.py
+    scripts/cell_io.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
