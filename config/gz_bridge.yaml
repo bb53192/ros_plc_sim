@@ -3,3 +3,12 @@
   ros_type_name: "rosgraph_msgs/msg/Clock"
   gz_type_name: "gz.msgs.Clock"
   direction: "GZ_TO_ROS"
+
+# Conveyor end-of-line part-present sensor (contact sensor) -> ROS.
+# Level signal: msg.contacts is non-empty while a workpiece is pressed against the belt
+# end stop, empty when the pick position is clear.
+- ros_topic_name: "/conveyor_end_sensor/contacts"
+  gz_topic_name: "/world/gripper_cell/model/conveyor_end_stop/link/stop/sensor/end_contact/contact"
+  ros_type_name: "ros_gz_interfaces/msg/Contacts"
+  gz_type_name: "gz.msgs.Contacts"
+  direction: "GZ_TO_ROS"
