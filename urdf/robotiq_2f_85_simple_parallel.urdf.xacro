@@ -1,6 +1,7 @@
 <?xml version="1.0"?>
 <!-- Simplified Robotiq 2F-85 for Gazebo: two rigid jaws, parallel closing via prismatic joints from base
-     (ABB-like linear motion). One commanded joint + mimic on the other side. No inner knuckle chain.
+     (ABB-like linear motion). BOTH jaws are real command joints driven by a joint_trajectory_controller
+     (no <mimic>: DART/gz physics does not support mimic constraints, so the mimic'd jaw never moved).
      Stroke 0.043 m per finger (~85 mm opening between pads). Same link/joint names for ros2_control / MoveIt. -->
 <robot xmlns:xacro="http://wiki.ros.org/xacro" name="robotiq_gripper">
     <!-- Prismatic stroke per finger (m). q=0 open, q=stroke closed (inward). -->
@@ -229,7 +230,6 @@
             <axis xyz="1 0 0" />
             <origin xyz="-0.03060114 0.0 0.05490452" rpy="0 0 0" />
             <limit lower="0.0" upper="${robotiq_prismatic_stroke}" effort="50" velocity="0.5" />
-            <mimic joint="${prefix}robotiq_85_left_knuckle_joint" multiplier="1" />
         </joint>
     </xacro:macro>
 </robot>
