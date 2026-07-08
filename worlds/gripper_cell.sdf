@@ -10,6 +10,7 @@
     </plugin>
     <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
     <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-contact-system" name="gz::sim::systems::Contact"/>
     <scene>
       <ambient>1.0 1.0 1.0</ambient>
       <background>0.8 0.8 0.8</background>
@@ -48,6 +49,158 @@
       </link>
     </model>
 
-    <!-- Empty for now: add the gripper cell fixtures (table, bins, objects) here later. -->
+    <!-- ================= Conveyor: real friction belt =================
+         A static belt slab (top face at z=0.55) whose contact surface is driven along
+         world -X by the gz-sim TrackController plugin. The workpiece rides on top by
+         friction (no cheating: nothing teleports the part). Drive it with a gz.msgs.Double
+         on /model/belt_track/link/base_link/track_cmd_vel  (negative = toward the robot,
+         0 = stop). The launch file publishes a default speed at startup.
+
+         End rollers use radius 0.05 == belt_height/2, so their crowns are FLUSH with the
+         belt top -- previously radius 0.06 poked 1cm proud and bumped the part up at the
+         ends. Delivery (low-X) end sits at x=0.40, i.e. where the old pickup table was. -->
+    <model name="belt_track">
+      <pose>1.15 0.35 0 0 0 0</pose>
+      <static>1</static>
+      <link name="base_link">
+        <pose>0 0 0.50 0 0 0</pose>
+        <collision name="belt_col">
+          <geometry><box><size>1.5 0.30 0.10</size></box></geometry>
+          <surface><friction><ode><mu>0.7</mu><mu2>150</mu2><fdir1>0 1 0</fdir1></ode></friction></surface>
+        </collision>
+        <visual name="belt_vis">
+          <geometry><box><size>1.5 0.30 0.10</size></box></geometry>
+          <material><ambient>0.05 0.05 0.6 1</ambient><diffuse>0.08 0.08 0.75 1</diffuse></material>
+        </visual>
+        <!-- end rollers: radius = belt_height/2 = 0.05 -> flush with belt top -->
+        <collision name="roll_a_col">
+          <pose>0.75 0 0 -1.5708 0 0</pose>
+          <geometry><cylinder><length>0.30</length><radius>0.05</radius></cylinder></geometry>
+        </collision>
+        <visual name="roll_a_vis">
+          <pose>0.75 0 0 -1.5708 0 0</pose>
+          <geometry><cylinder><length>0.30</length><radius>0.05</radius></cylinder></geometry>
+          <material><ambient>0.2 0.2 0.2 1</ambient><diffuse>0.2 0.2 0.2 1</diffuse></material>
+        </visual>
+        <collision name="roll_b_col">
+          <pose>-0.75 0 0 -1.5708 0 0</pose>
+          <geometry><cylinder><length>0.30</length><radius>0.05</radius></cylinder></geometry>
+        </collision>
+        <visual name="roll_b_vis">
+          <pose>-0.75 0 0 -1.5708 0 0</pose>
+          <geometry><cylinder><length>0.30</length><radius>0.05</radius></cylinder></geometry>
+          <material><ambient>0.2 0.2 0.2 1</ambient><diffuse>0.2 0.2 0.2 1</diffuse></material>
+        </visual>
+      </link>
+      <!-- support legs (visual only), floor -> belt underside at z=0.45 -->
+      <link name="leg_1"><pose>0.7 0.12 0.225 0 0 0</pose><visual name="v"><geometry><box><size>0.05 0.05 0.45</size></box></geometry><material><ambient>0.25 0.25 0.25 1</ambient><diffuse>0.25 0.25 0.25 1</diffuse></material></visual></link>
+      <link name="leg_2"><pose>0.7 -0.12 0.225 0 0 0</pose><visual name="v"><geometry><box><size>0.05 0.05 0.45</size></box></geometry><material><ambient>0.25 0.25 0.25 1</ambient><diffuse>0.25 0.25 0.25 1</diffuse></material></visual></link>
+      <link name="leg_3"><pose>-0.7 0.12 0.225 0 0 0</pose><visual name="v"><geometry><box><size>0.05 0.05 0.45</size></box></geometry><material><ambient>0.25 0.25 0.25 1</ambient><diffuse>0.25 0.25 0.25 1</diffuse></material></visual></link>
+      <link name="leg_4"><pose>-0.7 -0.12 0.225 0 0 0</pose><visual name="v"><geometry><box><size>0.05 0.05 0.45</size></box></geometry><material><ambient>0.25 0.25 0.25 1</ambient><diffuse>0.25 0.25 0.25 1</diffuse></material></visual></link>
+      <plugin filename="gz-sim-track-controller-system" name="gz::sim::systems::TrackController">
+        <link>base_link</link>
+      </plugin>
+    </model>
+
+    <!-- End stop + part-present sensor at the belt's delivery (low-X) end.
+         The moving belt pushes the part against this lip so it parks at a repeatable spot
+         for the robot pick pose. A contact sensor reports a LEVEL signal: it publishes
+         gz.msgs.Contacts continuously while a workpiece is pressed against the stop (non-empty
+         = present) and empty when the pick position is clear. Bridged to ROS as
+         ros_gz_interfaces/Contacts on /conveyor_end_sensor/contacts -> future Modbus/PLC coil.
+         (A gz TouchPlugin was tried here but it is a one-shot latch, not a level signal.) -->
+    <model name="conveyor_end_stop">
+      <static>true</static>
+      <pose>0.40 0.35 0 0 0 0</pose>
+      <link name="stop">
+        <pose>0 0 0.55 0 0 0</pose>
+        <collision name="collision">
+          <geometry><box><size>0.02 0.30 0.10</size></box></geometry>
+        </collision>
+        <sensor name="end_contact" type="contact">
+          <contact><collision>collision</collision></contact>
+          <update_rate>30</update_rate>
+          <always_on>true</always_on>
+        </sensor>
+        <visual name="visual">
+          <geometry><box><size>0.02 0.30 0.10</size></box></geometry>
+          <material><ambient>0.6 0.1 0.1 1</ambient><diffuse>0.75 0.12 0.12 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Collection box: open-top crate (bottom + 4 walls), static, within robot reach on the
+         opposite side from the conveyor. -->
+    <model name="collection_box">
+      <static>true</static>
+      <pose>0.0 -0.45 0 0 0 0</pose>
+      <link name="bottom">
+        <pose>0 0 0.01 0 0 0</pose>
+        <collision name="collision"><geometry><box><size>0.30 0.30 0.02</size></box></geometry></collision>
+        <visual name="visual">
+          <geometry><box><size>0.30 0.30 0.02</size></box></geometry>
+          <material><ambient>0.6 0.4 0.2 1</ambient><diffuse>0.6 0.4 0.2 1</diffuse></material>
+        </visual>
+      </link>
+      <link name="wall_pos_x">
+        <pose>0.14 0 0.095 0 0 0</pose>
+        <collision name="collision"><geometry><box><size>0.02 0.30 0.15</size></box></geometry></collision>
+        <visual name="visual">
+          <geometry><box><size>0.02 0.30 0.15</size></box></geometry>
+          <material><ambient>0.6 0.4 0.2 1</ambient><diffuse>0.6 0.4 0.2 1</diffuse></material>
+        </visual>
+      </link>
+      <link name="wall_neg_x">
+        <pose>-0.14 0 0.095 0 0 0</pose>
+        <collision name="collision"><geometry><box><size>0.02 0.30 0.15</size></box></geometry></collision>
+        <visual name="visual">
+          <geometry><box><size>0.02 0.30 0.15</size></box></geometry>
+          <material><ambient>0.6 0.4 0.2 1</ambient><diffuse>0.6 0.4 0.2 1</diffuse></material>
+        </visual>
+      </link>
+      <link name="wall_pos_y">
+        <pose>0 0.14 0.095 0 0 0</pose>
+        <collision name="collision"><geometry><box><size>0.30 0.02 0.15</size></box></geometry></collision>
+        <visual name="visual">
+          <geometry><box><size>0.30 0.02 0.15</size></box></geometry>
+          <material><ambient>0.6 0.4 0.2 1</ambient><diffuse>0.6 0.4 0.2 1</diffuse></material>
+        </visual>
+      </link>
+      <link name="wall_neg_y">
+        <pose>0 -0.14 0.095 0 0 0</pose>
+        <collision name="collision"><geometry><box><size>0.30 0.02 0.15</size></box></geometry></collision>
+        <visual name="visual">
+          <geometry><box><size>0.30 0.02 0.15</size></box></geometry>
+          <material><ambient>0.6 0.4 0.2 1</ambient><diffuse>0.6 0.4 0.2 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- One workpiece, spawned at the belt's feed (high-X) end. The belt carries it along
+         -X to the end stop, where the sensor fires and the robot picks it. -->
+    <model name="workpiece_1">
+      <pose>1.75 0.35 0.58 0 0 0</pose>
+      <link name="link">
+        <inertial>
+          <mass>0.05</mass>
+          <inertia><ixx>0.00002</ixx><iyy>0.00002</iyy><izz>0.00002</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
+        </inertial>
+        <collision name="collision">
+          <geometry><box><size>0.04 0.04 0.04</size></box></geometry>
+          <surface>
+            <friction>
+              <ode><mu>50</mu><mu2>50</mu2></ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.04 0.04 0.04</size></box></geometry>
+          <material>
+            <ambient>0.8 0.1 0.1 1</ambient>
+            <diffuse>0.8 0.1 0.1 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
   </world>
 </sdf>
