@@ -36,8 +36,19 @@
         <state_interface name="velocity"/>
       </joint>
       <xacro:if value="${use_robotiq_gripper == True or use_robotiq_gripper == 'true'}">
-        <!-- Gazebo handles the mimic (right knuckle) natively; only the driven joint needs an interface. -->
+        <!-- Both jaws are driven explicitly (no mimic): DART ignores mimic constraints, so each
+             prismatic jaw needs its own command interface. A joint_trajectory_controller commands
+             both to the same position for symmetric parallel closing. -->
         <joint name="${prefix}robotiq_85_left_knuckle_joint">
+          <command_interface name="position"/>
+          <state_interface name="position">
+            <param name="initial_value">0.0</param>
+          </state_interface>
+          <state_interface name="velocity">
+            <param name="initial_value">0.0</param>
+          </state_interface>
+        </joint>
+        <joint name="${prefix}robotiq_85_right_knuckle_joint">
           <command_interface name="position"/>
           <state_interface name="position">
             <param name="initial_value">0.0</param>

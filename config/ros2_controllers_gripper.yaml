@@ -9,7 +9,7 @@ controller_manager:
       type: joint_trajectory_controller/JointTrajectoryController
 
     gripper_controller:
-      type: parallel_gripper_action_controller/GripperActionController
+      type: joint_trajectory_controller/JointTrajectoryController
 
 joint_state_broadcaster:
   ros__parameters:
@@ -21,6 +21,7 @@ joint_state_broadcaster:
       - J5
       - J6
       - robotiq_85_left_knuckle_joint
+      - robotiq_85_right_knuckle_joint
 
 arm_controller:
   ros__parameters:
@@ -42,12 +43,17 @@ arm_controller:
 
 gripper_controller:
   ros__parameters:
-    joint: robotiq_85_left_knuckle_joint
-    # NOTE: position_controllers/GripperActionController is deprecated in Jazzy and
-    # segfaults on activate; parallel_gripper_action_controller is the working replacement.
+    # Both jaws are independent joints (no mimic -- DART doesn't support mimic constraints,
+    # see robotiq_2f_85_simple_parallel.urdf.xacro), so a trajectory controller commands
+    # them to the same position together for symmetric parallel closing.
+    joints:
+      - robotiq_85_left_knuckle_joint
+      - robotiq_85_right_knuckle_joint
+    command_interfaces:
+      - position
     state_interfaces:
       - position
       - velocity
-    allow_stalling: true
-    stall_timeout: 0.05
-    goal_tolerance: 0.003
+    state_publish_rate: 100.0
+    action_monitor_rate: 20.0
+    allow_partial_joints_goal: false
