@@ -1,0 +1,29 @@
+# TCP (grasp-point) waypoints for the CRX pick-and-place, planning_frame = world.
+# The node computes IK for the flange (ik_link=flange) at TCP.z + flange_tcp_offset, with the
+# tool pointing straight DOWN and twisted so the jaws straddle the part along world Y (clear of
+# the conveyor end-stop lip). Grasp z is calibrated by eye: cube center is ~0.57 but the pick
+# TCP is 0.53 so the jaws actually straddle the 40 mm cube (empirically 4 cm lower than the
+# nominal pad-midpoint model).
+planning_frame: world
+flange_tcp_offset: 0.1208
+# tool-down + 90deg twist (jaws along world Y), flipped so the arm reaches with a natural
+# forward posture (elbow does not swing back into the conveyor)
+orientation: {x: 0.50774, y: 0.49218, z: -0.50622, w: 0.49371}
+
+move_time: 4.0     # seconds per arm move
+grip_time: 2.0     # seconds per gripper move
+
+# home joint configuration (rad)
+home: {J1: 0.0, J2: 0.0, J3: 0.0, J4: 0.0, J5: -1.5708, J6: 0.0}
+
+# TCP world positions
+tcp:
+  pick_approach:  {x: 0.43, y: 0.35, z: 0.72}
+  pick:           {x: 0.43, y: 0.35, z: 0.53}
+  lift:           {x: 0.43, y: 0.35, z: 0.72}
+  place_approach: {x: 0.00, y: -0.65, z: 0.80}
+  place:          {x: 0.00, y: -0.65, z: 0.62}
+
+gripper:
+  open: 0.0
+  closed: 0.043
