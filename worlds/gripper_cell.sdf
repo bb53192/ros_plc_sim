@@ -129,11 +129,13 @@
       </link>
     </model>
 
-    <!-- Collection box: open-top crate (bottom + 4 walls), static, within robot reach on the
-         opposite side from the conveyor. -->
+    <!-- Collection box: open-top crate (bottom + 4 walls) raised onto a 4-leg pedestal so it
+         sits at ~belt height instead of on the floor. Static, within robot reach on the
+         opposite side from the conveyor. Model origin is lifted 0.45 m; the legs reach back
+         down to the floor. -->
     <model name="collection_box">
       <static>true</static>
-      <pose>0.0 -0.45 0 0 0 0</pose>
+      <pose>0.0 -0.45 0.45 0 0 0</pose>
       <link name="bottom">
         <pose>0 0 0.01 0 0 0</pose>
         <collision name="collision"><geometry><box><size>0.30 0.30 0.02</size></box></geometry></collision>
@@ -174,6 +176,12 @@
           <material><ambient>0.6 0.4 0.2 1</ambient><diffuse>0.6 0.4 0.2 1</diffuse></material>
         </visual>
       </link>
+      <!-- Pedestal: 4 legs from the crate underside (z=0 in model frame, i.e. world 0.45)
+           down to the floor (world 0). -->
+      <link name="ped_1"><pose>0.13 0.13 -0.225 0 0 0</pose><collision name="c"><geometry><box><size>0.04 0.04 0.45</size></box></geometry></collision><visual name="v"><geometry><box><size>0.04 0.04 0.45</size></box></geometry><material><ambient>0.25 0.25 0.25 1</ambient><diffuse>0.25 0.25 0.25 1</diffuse></material></visual></link>
+      <link name="ped_2"><pose>0.13 -0.13 -0.225 0 0 0</pose><collision name="c"><geometry><box><size>0.04 0.04 0.45</size></box></geometry></collision><visual name="v"><geometry><box><size>0.04 0.04 0.45</size></box></geometry><material><ambient>0.25 0.25 0.25 1</ambient><diffuse>0.25 0.25 0.25 1</diffuse></material></visual></link>
+      <link name="ped_3"><pose>-0.13 0.13 -0.225 0 0 0</pose><collision name="c"><geometry><box><size>0.04 0.04 0.45</size></box></geometry></collision><visual name="v"><geometry><box><size>0.04 0.04 0.45</size></box></geometry><material><ambient>0.25 0.25 0.25 1</ambient><diffuse>0.25 0.25 0.25 1</diffuse></material></visual></link>
+      <link name="ped_4"><pose>-0.13 -0.13 -0.225 0 0 0</pose><collision name="c"><geometry><box><size>0.04 0.04 0.45</size></box></geometry></collision><visual name="v"><geometry><box><size>0.04 0.04 0.45</size></box></geometry><material><ambient>0.25 0.25 0.25 1</ambient><diffuse>0.25 0.25 0.25 1</diffuse></material></visual></link>
     </model>
 
     <!-- One workpiece, spawned at the belt's feed (high-X) end. The belt carries it along
