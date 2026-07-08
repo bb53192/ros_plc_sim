@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SRDF for the CRX-10iA + simplified Robotiq 2F-85 gripper cell (ros_plc_sim).
+     Seeded from fanuc_gazebo/srdf/crx10ia.srdf; adds the gripper group + end effector so
+     MoveIt and arm_api2 know about the two-jaw gripper. MoveIt plans the ARM only; the
+     gripper is driven directly via /gripper_controller/follow_joint_trajectory. -->
+<robot name="crx10ia">
+  <group name="manipulator">
+    <chain base_link="base_link" tip_link="flange"/>
+  </group>
+
+  <!-- Both jaw prismatic joints. arm_api2's simple_iface expects a group literally named
+       "gripper" with "open"/"close" named states; MoveIt can also drive it (its
+       joint_trajectory_controller is registered in moveit_controllers.yaml). -->
+  <group name="gripper">
+    <joint name="robotiq_85_left_knuckle_joint"/>
+    <joint name="robotiq_85_right_knuckle_joint"/>
+  </group>
+
+  <group_state name="home" group="manipulator">
+    <joint name="J1" value="0"/>
+    <joint name="J2" value="0"/>
+    <joint name="J3" value="0"/>
+    <joint name="J4" value="0"/>
+    <joint name="J5" value="-1.5708"/>
+    <joint name="J6" value="0"/>
+  </group_state>
+
+  <group_state name="open" group="gripper">
+    <joint name="robotiq_85_left_knuckle_joint" value="0.0"/>
+    <joint name="robotiq_85_right_knuckle_joint" value="0.0"/>
+  </group_state>
+  <group_state name="close" group="gripper">
+    <joint name="robotiq_85_left_knuckle_joint" value="0.043"/>
+    <joint name="robotiq_85_right_knuckle_joint" value="0.043"/>
+  </group_state>
+
+  <end_effector name="gripper" parent_link="flange" group="gripper"/>
+
+  <virtual_joint name="world-base_link" type="fixed" parent_frame="world" child_link="base_link"/>
+
+  <!-- Arm self-collisions (from fanuc_gazebo SRDF) -->
+  <disable_collisions link1="J1_link" link2="J2_link" reason="Adjacent"/>
+  <disable_collisions link1="J1_link" link2="J3_link" reason="Never"/>
+  <disable_collisions link1="J1_link" link2="base_link" reason="Adjacent"/>
+  <disable_collisions link1="J2_link" link2="J3_link" reason="Adjacent"/>
+  <disable_collisions link1="J2_link" link2="J4_link" reason="Never"/>
+  <disable_collisions link1="J3_link" link2="J4_link" reason="Adjacent"/>
+  <disable_collisions link1="J3_link" link2="J5_link" reason="Never"/>
+  <disable_collisions link1="J3_link" link2="J6_link" reason="Never"/>
+  <disable_collisions link1="J3_link" link2="base_link" reason="Never"/>
+  <disable_collisions link1="J4_link" link2="J5_link" reason="Adjacent"/>
+  <disable_collisions link1="J4_link" link2="J6_link" reason="Never"/>
+  <disable_collisions link1="J5_link" link2="J6_link" reason="Adjacent"/>
+
+  <!-- Gripper: mount + both jaws vs wrist, and jaws vs each other / base -->
+  <disable_collisions link1="robotiq_85_base_link" link2="J5_link" reason="Never"/>
+  <disable_collisions link1="robotiq_85_base_link" link2="J6_link" reason="Adjacent"/>
+  <disable_collisions link1="robotiq_85_base_link" link2="flange" reason="Adjacent"/>
+  <disable_collisions link1="robotiq_85_base_link" link2="fanuc_flange" reason="Adjacent"/>
+  <disable_collisions link1="robotiq_85_base_link" link2="robotiq_85_left_knuckle_link" reason="Adjacent"/>
+  <disable_collisions link1="robotiq_85_base_link" link2="robotiq_85_right_knuckle_link" reason="Adjacent"/>
+  <disable_collisions link1="robotiq_85_left_knuckle_link" link2="robotiq_85_right_knuckle_link" reason="Never"/>
+  <disable_collisions link1="robotiq_85_left_knuckle_link" link2="J6_link" reason="Never"/>
+  <disable_collisions link1="robotiq_85_right_knuckle_link" link2="J6_link" reason="Never"/>
+  <disable_collisions link1="robotiq_85_left_knuckle_link" link2="flange" reason="Never"/>
+  <disable_collisions link1="robotiq_85_right_knuckle_link" link2="flange" reason="Never"/>
+  <disable_collisions link1="robotiq_85_left_knuckle_link" link2="fanuc_flange" reason="Never"/>
+  <disable_collisions link1="robotiq_85_right_knuckle_link" link2="fanuc_flange" reason="Never"/>
+</robot>

@@ -4,7 +4,7 @@ project(ros_plc_sim)
 find_package(ament_cmake REQUIRED)
 
 install(
-  DIRECTORY config launch urdf worlds
+  DIRECTORY config launch srdf urdf worlds
   DESTINATION share/${PROJECT_NAME}
 )
 

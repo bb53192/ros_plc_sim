@@ -13,6 +13,7 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess, OpaqueFunction, SetEnvironmentVariable, TimerAction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.actions import IncludeLaunchDescription
+from launch.conditions import IfCondition
 from launch.substitutions import (
     Command,
     FindExecutable,
@@ -150,6 +151,7 @@ def _configure(context):
 
     # TrackController has no default speed, so kick the belt once the world is up.
     # Negative == drives the part along -X toward the robot/end-stop. (0 stops it.)
+    # Gated by autostart_belt: set false when the PLC (M4+) owns the belt.
     belt_start = TimerAction(
         period=6.0,
         actions=[
@@ -163,6 +165,7 @@ def _configure(context):
                 output="screen",
             )
         ],
+        condition=IfCondition(LaunchConfiguration("autostart_belt")),
     )
 
     return [
@@ -198,6 +201,11 @@ def generate_launch_description():
                 "use_robotiq_gripper",
                 default_value="true",
                 description="Attach the Robotiq 2F-85 gripper to the CRX-10iA flange",
+            ),
+            DeclareLaunchArgument(
+                "autostart_belt",
+                default_value="true",
+                description="Publish a default belt speed at startup. Set false when the PLC drives the belt.",
             ),
             OpaqueFunction(function=_configure),
         ]
