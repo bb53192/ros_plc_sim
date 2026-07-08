@@ -215,13 +215,23 @@
             <xacro:insert_block name="origin" />
         </joint>
 
-        <!-- q=0: open; q=stroke: closed. Left jaw moves along -X toward center when q increases. -->
+        <!-- q=0: open; q=stroke: closed. Left jaw moves along -X toward center when q increases.
+
+             Two DART-specific guards on both jaw joints (found empirically; see git history):
+             - lower limit is -0.002 (not 0.0) so the commanded open pose q=0 sits INSIDE the
+               range: DART locks a velocity-servo-driven joint whose limit constraint is active,
+               and whichever jaw hangs below the gripper is pressed into its lower limit by
+               gravity. With the margin, the servo holds q=0 and the limit never engages.
+             - Coulomb friction 5 N > jaw weight (0.129 kg ~ 1.3 N) so an uncontrolled jaw
+               (e.g. before controllers activate) doesn't sag onto the limit either. The 50 N
+               effort budget easily overcomes it when commanded. -->
         <joint name="${prefix}robotiq_85_left_knuckle_joint" type="prismatic">
             <parent link="${prefix}robotiq_85_base_link" />
             <child link="${prefix}robotiq_85_left_knuckle_link" />
             <axis xyz="-1 0 0" />
             <origin xyz="0.03060114 0.0 0.05490452" rpy="0 0 0" />
-            <limit lower="0.0" upper="${robotiq_prismatic_stroke}" effort="50" velocity="0.5" />
+            <limit lower="-0.002" upper="${robotiq_prismatic_stroke}" effort="50" velocity="0.5" />
+            <dynamics damping="1.0" friction="5.0" />
         </joint>
 
         <joint name="${prefix}robotiq_85_right_knuckle_joint" type="prismatic">
@@ -229,7 +239,8 @@
             <child link="${prefix}robotiq_85_right_knuckle_link" />
             <axis xyz="1 0 0" />
             <origin xyz="-0.03060114 0.0 0.05490452" rpy="0 0 0" />
-            <limit lower="0.0" upper="${robotiq_prismatic_stroke}" effort="50" velocity="0.5" />
+            <limit lower="-0.002" upper="${robotiq_prismatic_stroke}" effort="50" velocity="0.5" />
+            <dynamics damping="1.0" friction="5.0" />
         </joint>
     </xacro:macro>
 </robot>
