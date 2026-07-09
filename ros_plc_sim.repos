@@ -1,0 +1,44 @@
+# Workspace manifest for the PLC-sequenced CRX gripper cell (vcstool).
+#
+# Reproduce the workspace:
+#   mkdir -p ~/ws/src && cd ~/ws
+#   vcs import src < src/ros_plc_sim/ros_plc_sim.repos     # (or point at a local copy)
+#   rosdep install --from-paths src --ignore-src -r -y
+#   colcon build --symlink-install
+#
+# NOTE: commits are pinned for reproducibility. fanuc_gazebo and ros2_robotiq_gripper
+# live on NON-default branches (see comments) — do not switch them to main.
+repositories:
+  # --- our work ---
+  ros_plc_sim:                     # the cell, cell_io, pick-place, MoveIt config, launch, docs
+    type: git
+    url: https://github.com/bb53192/ros_plc_sim.git            # TODO: -> CroboticSolutions org on publish
+    version: conveyor-belt-and-end-sensor
+  plc_bridge:                      # OPC UA + Modbus bridge (generic, reusable)
+    type: git
+    url: https://github.com/bb53192/plc-ros2-bridge.git
+    version: crx-cell-integration
+
+  # --- CroboticSolutions vendor forks (pinned) ---
+  fanuc_description:
+    type: git
+    url: https://github.com/CroboticSolutions/fanuc_description.git
+    version: a304e56               # branch main
+  fanuc_driver:
+    type: git
+    url: https://github.com/CroboticSolutions/fanuc_driver.git
+    version: e43fb41               # branch main
+  fanuc_gazebo:
+    type: git
+    url: https://github.com/CroboticSolutions/fanuc_gazebo.git
+    version: 7094f27               # branch apirsic/devel  (NON-default!)
+  ros2_robotiq_gripper:
+    type: git
+    url: https://github.com/CroboticSolutions/ros2_robotiq_gripper.git
+    version: 689c526               # branch multiple_ur_robots  (NON-default!)
+
+  # --- optional: only if you want the arm_api2 path (core cell_io loop does NOT need it) ---
+  # arm_api2:
+  #   type: git
+  #   url: https://github.com/bb53192/arm_api2.git
+  #   version: crx-integration

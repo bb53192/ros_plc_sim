@@ -4,12 +4,14 @@
 """cell_io: bridges the gripper cell to the PLC using plain std_msgs/Bool topics that match the
 plc_bridge contract (github.com/bb53192/plc-ros2-bridge).
 
-  PLC -> cell:   /plc/belt_run     (Bool)  true = run belt, false = stop
-                 /plc/robot_start  (Bool)  false->true edge = run ONE pick-and-place cycle
-  cell -> PLC:   /sensors/part_present (Bool)  part pressed against the belt end stop (level)
-                 /sensors/robot_busy   (Bool)  true while a cycle is running
-                 /sensors/cycle_done   (Bool)  true after a cycle finishes, until the next start
+  PLC -> cell:   /plc/belt_run     (Bool)  OPC UA  true = run belt, false = stop
+                 /plc/robot_start  (Bool)  OPC UA  false->true edge = run ONE pick-and-place cycle
+  cell -> PLC:   /plc/write/robot_busy (Bool)  OPC UA (write)  true while a cycle is running
+                 /plc/write/cycle_done (Bool)  OPC UA (write)  true after a cycle, until next start
+                 /sensors/part_present (Bool)  Modbus discrete input  part at the belt end stop
 
+The handshake rides OPC UA (bridge writes writable OpenPLC vars from /plc/write/<name>); only the
+part_present sensor stays on Modbus (/sensors/<name> -> modbus_sensor_bridge discrete input).
 The belt command goes out on /conveyor/belt_cmd (Float64), bridged to gz by gz_bridge.yaml.
 The pick-and-place cycle uses MoveIt /compute_ik + arm_controller/gripper_controller directly
 (same method as crx_pick_place.py), run in a worker thread so the I/O keeps updating live.
@@ -47,6 +49,8 @@ class CellIO(Node):
         self.declare_parameter("belt_speed", -0.15)
         self.declare_parameter("world", "gripper_cell")
         self.declare_parameter("feed_pose", [1.75, 0.35, 0.58])  # belt feed end respawn
+        # gz contact sensor only publishes WHILE touching; infer "gone" from silence.
+        self.declare_parameter("present_timeout", 0.5)
 
         wp = self.get_parameter("waypoint_file").value
         path = (
@@ -69,6 +73,7 @@ class CellIO(Node):
         self.belt_speed = float(self.get_parameter("belt_speed").value)
         self.world = self.get_parameter("world").value
         self.feed = list(self.get_parameter("feed_pose").value)
+        self.present_timeout = float(self.get_parameter("present_timeout").value)
 
         # ---- state
         self._belt_run = False
@@ -76,14 +81,15 @@ class CellIO(Node):
         self._robot_busy = False
         self._cycle_done = False
         self._start_prev = False
+        self._last_contact = 0.0  # monotonic time of last non-empty contact msg
         self._lock = threading.Lock()
 
         cg = ReentrantCallbackGroup()
         # ---- PLC-facing I/O
         self.pub_belt = self.create_publisher(Float64, "/conveyor/belt_cmd", 10)
-        self.pub_present = self.create_publisher(Bool, "/sensors/part_present", 10)
-        self.pub_busy = self.create_publisher(Bool, "/sensors/robot_busy", 10)
-        self.pub_done = self.create_publisher(Bool, "/sensors/cycle_done", 10)
+        self.pub_present = self.create_publisher(Bool, "/sensors/part_present", 10)  # Modbus
+        self.pub_busy = self.create_publisher(Bool, "/plc/write/robot_busy", 10)      # OPC UA write
+        self.pub_done = self.create_publisher(Bool, "/plc/write/cycle_done", 10)      # OPC UA write
         self.create_subscription(Bool, "/plc/belt_run", self._on_belt_run, 10, callback_group=cg)
         self.create_subscription(Bool, "/plc/robot_start", self._on_robot_start, 10, callback_group=cg)
         self.create_subscription(
@@ -105,7 +111,10 @@ class CellIO(Node):
         self._belt_run = bool(msg.data)
 
     def _on_contacts(self, msg: Contacts) -> None:
-        self._part_present = len(msg.contacts) > 0
+        # gz publishes this topic only while contact exists; stamp the time and let
+        # _tick clear part_present once messages stop arriving (part picked away).
+        if len(msg.contacts) > 0:
+            self._last_contact = time.monotonic()
 
     def _on_robot_start(self, msg: Bool) -> None:
         start = bool(msg.data)
@@ -116,6 +125,8 @@ class CellIO(Node):
             self._start_prev = False
 
     def _tick(self) -> None:
+        # part_present is true only while contacts keep arriving (see _on_contacts)
+        self._part_present = (time.monotonic() - self._last_contact) < self.present_timeout
         self.pub_belt.publish(Float64(data=(self.belt_speed if self._belt_run else 0.0)))
         self.pub_present.publish(Bool(data=self._part_present))
         self.pub_busy.publish(Bool(data=self._robot_busy))
