@@ -28,7 +28,22 @@ def generate_launch_description():
         }.items(),
     )
 
+    # AUTO/MANUAL arbiter: picks PLC (/plc/*) vs HMI (/manual/*) command source
+    # and republishes onto /cmd/*. Defaults to MANUAL (safe) — flip to AUTO via
+    # the /cell/set_mode service. plc_bridge stays unchanged (still on /plc/*).
+    cell_mode = Node(
+        package="ros_plc_sim",
+        executable="cell_mode.py",
+        output="screen",
+        parameters=[
+            {"use_sim_time": True},
+            {"start_mode": LaunchConfiguration("start_mode")},
+            {"manual_source": LaunchConfiguration("manual_source")},
+        ],
+    )
+
     # cell_io needs /compute_ik (move_group); start it after the stack settles.
+    # Its command inputs are remapped onto the arbiter's /cmd/* output.
     cell_io = TimerAction(
         period=14.0,
         actions=[
@@ -37,6 +52,10 @@ def generate_launch_description():
                 executable="cell_io.py",
                 output="screen",
                 parameters=[{"use_sim_time": True}],
+                remappings=[
+                    ("/plc/belt_run", "/cmd/belt_run"),
+                    ("/plc/robot_start", "/cmd/robot_start"),
+                ],
             )
         ],
     )
@@ -45,7 +64,10 @@ def generate_launch_description():
         [
             DeclareLaunchArgument("gazebo_gui", default_value="true"),
             DeclareLaunchArgument("launch_rviz", default_value="true"),
+            DeclareLaunchArgument("start_mode", default_value="manual"),
+            DeclareLaunchArgument("manual_source", default_value="ros"),
             cell,
+            cell_mode,
             cell_io,
         ]
     )
