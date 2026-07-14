@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SRDF for the two-arm color-sorting cell (dual_crx_gz.urdf.xacro). Two independent CRX-10iA +
+     Robotiq arms, prefixed blue_ / green_. MoveIt is used only as an IK solver (/compute_ik) per
+     arm; the disable_collisions lists are the single-arm crx10ia_robotiq.srdf list duplicated per
+     prefix. -->
+<robot name="dual_crx">
+  <!-- ===================== BLUE arm (station A, downstream) ===================== -->
+  <group name="blue_manipulator">
+    <chain base_link="blue_base_link" tip_link="blue_flange"/>
+  </group>
+  <group name="blue_gripper">
+    <joint name="blue_robotiq_85_left_knuckle_joint"/>
+    <joint name="blue_robotiq_85_right_knuckle_joint"/>
+  </group>
+  <group_state name="home" group="blue_manipulator">
+    <joint name="blue_J1" value="0"/>
+    <joint name="blue_J2" value="0"/>
+    <joint name="blue_J3" value="0"/>
+    <joint name="blue_J4" value="0"/>
+    <joint name="blue_J5" value="-1.5708"/>
+    <joint name="blue_J6" value="0"/>
+  </group_state>
+  <group_state name="open" group="blue_gripper">
+    <joint name="blue_robotiq_85_left_knuckle_joint" value="0.0"/>
+    <joint name="blue_robotiq_85_right_knuckle_joint" value="0.0"/>
+  </group_state>
+  <group_state name="close" group="blue_gripper">
+    <joint name="blue_robotiq_85_left_knuckle_joint" value="0.043"/>
+    <joint name="blue_robotiq_85_right_knuckle_joint" value="0.043"/>
+  </group_state>
+  <end_effector name="blue_ee" parent_link="blue_flange" group="blue_gripper"/>
+  <virtual_joint name="world-blue_base_link" type="fixed" parent_frame="world" child_link="blue_base_link"/>
+
+  <!-- ===================== GREEN arm (station B, upstream) ===================== -->
+  <group name="green_manipulator">
+    <chain base_link="green_base_link" tip_link="green_flange"/>
+  </group>
+  <group name="green_gripper">
+    <joint name="green_robotiq_85_left_knuckle_joint"/>
+    <joint name="green_robotiq_85_right_knuckle_joint"/>
+  </group>
+  <group_state name="home" group="green_manipulator">
+    <joint name="green_J1" value="0"/>
+    <joint name="green_J2" value="0"/>
+    <joint name="green_J3" value="0"/>
+    <joint name="green_J4" value="0"/>
+    <joint name="green_J5" value="-1.5708"/>
+    <joint name="green_J6" value="0"/>
+  </group_state>
+  <group_state name="open" group="green_gripper">
+    <joint name="green_robotiq_85_left_knuckle_joint" value="0.0"/>
+    <joint name="green_robotiq_85_right_knuckle_joint" value="0.0"/>
+  </group_state>
+  <group_state name="close" group="green_gripper">
+    <joint name="green_robotiq_85_left_knuckle_joint" value="0.043"/>
+    <joint name="green_robotiq_85_right_knuckle_joint" value="0.043"/>
+  </group_state>
+  <end_effector name="green_ee" parent_link="green_flange" group="green_gripper"/>
+  <virtual_joint name="world-green_base_link" type="fixed" parent_frame="world" child_link="green_base_link"/>
+
+  <!-- ===================== disable_collisions: BLUE ===================== -->
+  <disable_collisions link1="blue_J1_link" link2="blue_J2_link" reason="Adjacent"/>
+  <disable_collisions link1="blue_J1_link" link2="blue_J3_link" reason="Never"/>
+  <disable_collisions link1="blue_J1_link" link2="blue_base_link" reason="Adjacent"/>
+  <disable_collisions link1="blue_J2_link" link2="blue_J3_link" reason="Adjacent"/>
+  <disable_collisions link1="blue_J2_link" link2="blue_J4_link" reason="Never"/>
+  <disable_collisions link1="blue_J3_link" link2="blue_J4_link" reason="Adjacent"/>
+  <disable_collisions link1="blue_J3_link" link2="blue_J5_link" reason="Never"/>
+  <disable_collisions link1="blue_J3_link" link2="blue_J6_link" reason="Never"/>
+  <disable_collisions link1="blue_J3_link" link2="blue_base_link" reason="Never"/>
+  <disable_collisions link1="blue_J4_link" link2="blue_J5_link" reason="Adjacent"/>
+  <disable_collisions link1="blue_J4_link" link2="blue_J6_link" reason="Never"/>
+  <disable_collisions link1="blue_J5_link" link2="blue_J6_link" reason="Adjacent"/>
+  <disable_collisions link1="blue_robotiq_85_base_link" link2="blue_J5_link" reason="Never"/>
+  <disable_collisions link1="blue_robotiq_85_base_link" link2="blue_J6_link" reason="Adjacent"/>
+  <disable_collisions link1="blue_robotiq_85_base_link" link2="blue_flange" reason="Adjacent"/>
+  <disable_collisions link1="blue_robotiq_85_base_link" link2="blue_fanuc_flange" reason="Adjacent"/>
+  <disable_collisions link1="blue_robotiq_85_base_link" link2="blue_robotiq_85_left_knuckle_link" reason="Adjacent"/>
+  <disable_collisions link1="blue_robotiq_85_base_link" link2="blue_robotiq_85_right_knuckle_link" reason="Adjacent"/>
+  <disable_collisions link1="blue_robotiq_85_left_knuckle_link" link2="blue_robotiq_85_right_knuckle_link" reason="Never"/>
+  <disable_collisions link1="blue_robotiq_85_left_knuckle_link" link2="blue_J6_link" reason="Never"/>
+  <disable_collisions link1="blue_robotiq_85_right_knuckle_link" link2="blue_J6_link" reason="Never"/>
+  <disable_collisions link1="blue_robotiq_85_left_knuckle_link" link2="blue_flange" reason="Never"/>
+  <disable_collisions link1="blue_robotiq_85_right_knuckle_link" link2="blue_flange" reason="Never"/>
+  <disable_collisions link1="blue_robotiq_85_left_knuckle_link" link2="blue_fanuc_flange" reason="Never"/>
+  <disable_collisions link1="blue_robotiq_85_right_knuckle_link" link2="blue_fanuc_flange" reason="Never"/>
+
+  <!-- ===================== disable_collisions: GREEN ===================== -->
+  <disable_collisions link1="green_J1_link" link2="green_J2_link" reason="Adjacent"/>
+  <disable_collisions link1="green_J1_link" link2="green_J3_link" reason="Never"/>
+  <disable_collisions link1="green_J1_link" link2="green_base_link" reason="Adjacent"/>
+  <disable_collisions link1="green_J2_link" link2="green_J3_link" reason="Adjacent"/>
+  <disable_collisions link1="green_J2_link" link2="green_J4_link" reason="Never"/>
+  <disable_collisions link1="green_J3_link" link2="green_J4_link" reason="Adjacent"/>
+  <disable_collisions link1="green_J3_link" link2="green_J5_link" reason="Never"/>
+  <disable_collisions link1="green_J3_link" link2="green_J6_link" reason="Never"/>
+  <disable_collisions link1="green_J3_link" link2="green_base_link" reason="Never"/>
+  <disable_collisions link1="green_J4_link" link2="green_J5_link" reason="Adjacent"/>
+  <disable_collisions link1="green_J4_link" link2="green_J6_link" reason="Never"/>
+  <disable_collisions link1="green_J5_link" link2="green_J6_link" reason="Adjacent"/>
+  <disable_collisions link1="green_robotiq_85_base_link" link2="green_J5_link" reason="Never"/>
+  <disable_collisions link1="green_robotiq_85_base_link" link2="green_J6_link" reason="Adjacent"/>
+  <disable_collisions link1="green_robotiq_85_base_link" link2="green_flange" reason="Adjacent"/>
+  <disable_collisions link1="green_robotiq_85_base_link" link2="green_fanuc_flange" reason="Adjacent"/>
+  <disable_collisions link1="green_robotiq_85_base_link" link2="green_robotiq_85_left_knuckle_link" reason="Adjacent"/>
+  <disable_collisions link1="green_robotiq_85_base_link" link2="green_robotiq_85_right_knuckle_link" reason="Adjacent"/>
+  <disable_collisions link1="green_robotiq_85_left_knuckle_link" link2="green_robotiq_85_right_knuckle_link" reason="Never"/>
+  <disable_collisions link1="green_robotiq_85_left_knuckle_link" link2="green_J6_link" reason="Never"/>
+  <disable_collisions link1="green_robotiq_85_right_knuckle_link" link2="green_J6_link" reason="Never"/>
+  <disable_collisions link1="green_robotiq_85_left_knuckle_link" link2="green_flange" reason="Never"/>
+  <disable_collisions link1="green_robotiq_85_right_knuckle_link" link2="green_flange" reason="Never"/>
+  <disable_collisions link1="green_robotiq_85_left_knuckle_link" link2="green_fanuc_flange" reason="Never"/>
+  <disable_collisions link1="green_robotiq_85_right_knuckle_link" link2="green_fanuc_flange" reason="Never"/>
+</robot>

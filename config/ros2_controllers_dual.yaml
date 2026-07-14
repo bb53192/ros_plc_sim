@@ -1,0 +1,101 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 500
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    blue_arm_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+    green_arm_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+    blue_gripper_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+    green_gripper_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+joint_state_broadcaster:
+  ros__parameters:
+    joints:
+      - blue_J1
+      - blue_J2
+      - blue_J3
+      - blue_J4
+      - blue_J5
+      - blue_J6
+      - blue_robotiq_85_left_knuckle_joint
+      - blue_robotiq_85_right_knuckle_joint
+      - green_J1
+      - green_J2
+      - green_J3
+      - green_J4
+      - green_J5
+      - green_J6
+      - green_robotiq_85_left_knuckle_joint
+      - green_robotiq_85_right_knuckle_joint
+
+blue_arm_controller:
+  ros__parameters:
+    joints:
+      - blue_J1
+      - blue_J2
+      - blue_J3
+      - blue_J4
+      - blue_J5
+      - blue_J6
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
+    state_publish_rate: 100.0
+    action_monitor_rate: 20.0
+    allow_partial_joints_goal: false
+
+green_arm_controller:
+  ros__parameters:
+    joints:
+      - green_J1
+      - green_J2
+      - green_J3
+      - green_J4
+      - green_J5
+      - green_J6
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
+    state_publish_rate: 100.0
+    action_monitor_rate: 20.0
+    allow_partial_joints_goal: false
+
+blue_gripper_controller:
+  ros__parameters:
+    # Both jaws are independent joints (no mimic -- DART doesn't support mimic); a trajectory
+    # controller commands them to the same position for symmetric parallel closing.
+    joints:
+      - blue_robotiq_85_left_knuckle_joint
+      - blue_robotiq_85_right_knuckle_joint
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
+    state_publish_rate: 100.0
+    action_monitor_rate: 20.0
+    allow_partial_joints_goal: false
+
+green_gripper_controller:
+  ros__parameters:
+    joints:
+      - green_robotiq_85_left_knuckle_joint
+      - green_robotiq_85_right_knuckle_joint
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
+    state_publish_rate: 100.0
+    action_monitor_rate: 20.0
+    allow_partial_joints_goal: false

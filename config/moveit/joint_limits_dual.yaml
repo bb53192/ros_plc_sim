@@ -1,0 +1,18 @@
+# Joint limits for both CRX-10iA arms (from fanuc_gazebo) + the four Robotiq jaw joints.
+joint_limits:
+  blue_J1: {has_velocity_limits: true, max_velocity: 2.0943951023931953, has_acceleration_limits: true, max_acceleration: 0.4}
+  blue_J2: {has_velocity_limits: true, max_velocity: 2.0943951023931953, has_acceleration_limits: true, max_acceleration: 0.4}
+  blue_J3: {has_velocity_limits: true, max_velocity: 3.1415926535897931, has_acceleration_limits: true, max_acceleration: 0.4}
+  blue_J4: {has_velocity_limits: true, max_velocity: 3.1415926535897931, has_acceleration_limits: true, max_acceleration: 1.0}
+  blue_J5: {has_velocity_limits: true, max_velocity: 3.1415926535897931, has_acceleration_limits: true, max_acceleration: 1.0}
+  blue_J6: {has_velocity_limits: true, max_velocity: 3.1415926535897931, has_acceleration_limits: true, max_acceleration: 1.0}
+  blue_robotiq_85_left_knuckle_joint: {has_velocity_limits: true, max_velocity: 0.5, has_acceleration_limits: true, max_acceleration: 1.0}
+  blue_robotiq_85_right_knuckle_joint: {has_velocity_limits: true, max_velocity: 0.5, has_acceleration_limits: true, max_acceleration: 1.0}
+  green_J1: {has_velocity_limits: true, max_velocity: 2.0943951023931953, has_acceleration_limits: true, max_acceleration: 0.4}
+  green_J2: {has_velocity_limits: true, max_velocity: 2.0943951023931953, has_acceleration_limits: true, max_acceleration: 0.4}
+  green_J3: {has_velocity_limits: true, max_velocity: 3.1415926535897931, has_acceleration_limits: true, max_acceleration: 0.4}
+  green_J4: {has_velocity_limits: true, max_velocity: 3.1415926535897931, has_acceleration_limits: true, max_acceleration: 1.0}
+  green_J5: {has_velocity_limits: true, max_velocity: 3.1415926535897931, has_acceleration_limits: true, max_acceleration: 1.0}
+  green_J6: {has_velocity_limits: true, max_velocity: 3.1415926535897931, has_acceleration_limits: true, max_acceleration: 1.0}
+  green_robotiq_85_left_knuckle_joint: {has_velocity_limits: true, max_velocity: 0.5, has_acceleration_limits: true, max_acceleration: 1.0}
+  green_robotiq_85_right_knuckle_joint: {has_velocity_limits: true, max_velocity: 0.5, has_acceleration_limits: true, max_acceleration: 1.0}

@@ -1,0 +1,66 @@
+<?xml version="1.0"?>
+<!-- Two FANUC CRX-10iA + Robotiq 2F-85 arms in ONE description for the color-sorting cell.
+     Each arm is the proven single-arm stack (crx10ia_robotiq_gz.urdf.xacro) instantiated with a
+     joint/link prefix so their names don't collide:
+       blue_  arm  -> mounted at world origin        (station A, downstream, picks blue)
+       green_ arm  -> mounted +1.0 m along world X    (station B, upstream, picks green)
+     A SINGLE gz_ros2_control plugin hosts both <ros2_control> systems under one
+     /controller_manager (blue_/green_ arm + gripper controllers, see ros2_controllers_dual.yaml).
+     MoveIt uses this only as an IK solver (two chain groups in dual_crx_robotiq.srdf). -->
+<robot xmlns:xacro="http://wiki.ros.org/xacro" name="dual_crx">
+
+  <xacro:arg name="simulation_controllers" default="" />
+
+  <xacro:include filename="$(find fanuc_crx_description)/urdf/crx10ia_urdf_macro.xacro"/>
+  <xacro:include filename="$(find ros_plc_sim)/urdf/crx_gripper_gz_ros2_control_macro.xacro"/>
+  <xacro:include filename="$(find ros_plc_sim)/urdf/robotiq_2f_85_simple_parallel.urdf.xacro"/>
+
+  <link name="world"/>
+
+  <!-- One arm+gripper+ros2_control system, parameterized by prefix and world mount pose. -->
+  <xacro:macro name="sorting_arm" params="prefix system_name *mount">
+    <link name="${prefix}end_effector"/>
+
+    <xacro:crx10ia parent="world" child="${prefix}end_effector" prefix="${prefix}">
+      <xacro:insert_block name="mount"/>
+    </xacro:crx10ia>
+
+    <!-- Gripper mounts on ${prefix}fanuc_flange (Z-out tool frame). -->
+    <xacro:robotiq_gripper
+      name="${system_name}"
+      prefix="${prefix}"
+      parent="${prefix}fanuc_flange"
+      include_ros2_control="false"
+      sim_gazebo="false"
+      use_fake_hardware="false"
+    >
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </xacro:robotiq_gripper>
+
+    <xacro:crx_gripper_gz_control name="${system_name}" prefix="${prefix}" use_robotiq_gripper="true"/>
+
+    <gazebo reference="${prefix}base_link"><selfCollide>false</selfCollide></gazebo>
+    <gazebo reference="${prefix}J1_link"><selfCollide>false</selfCollide></gazebo>
+    <gazebo reference="${prefix}J2_link"><selfCollide>false</selfCollide></gazebo>
+    <gazebo reference="${prefix}J3_link"><selfCollide>false</selfCollide></gazebo>
+    <gazebo reference="${prefix}J4_link"><selfCollide>false</selfCollide></gazebo>
+    <gazebo reference="${prefix}J5_link"><selfCollide>false</selfCollide></gazebo>
+    <gazebo reference="${prefix}J6_link"><selfCollide>false</selfCollide></gazebo>
+  </xacro:macro>
+
+  <xacro:sorting_arm prefix="blue_" system_name="crx_blue">
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </xacro:sorting_arm>
+
+  <xacro:sorting_arm prefix="green_" system_name="crx_green">
+    <origin xyz="1.0 0 0" rpy="0 0 0"/>
+  </xacro:sorting_arm>
+
+  <!-- One controller_manager for BOTH systems. -->
+  <gazebo>
+    <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+      <parameters>$(arg simulation_controllers)</parameters>
+    </plugin>
+  </gazebo>
+
+</robot>

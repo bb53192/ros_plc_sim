@@ -1,0 +1,51 @@
+# MoveIt -> Gazebo ros2_control for both arms. All four are joint_trajectory_controllers in the
+# gz sim (see config/ros2_controllers_dual.yaml). The grippers are normally driven directly by
+# the orchestrator, but registering them here lets MoveIt command them too.
+moveit_controller_manager: moveit_simple_controller_manager/MoveItSimpleControllerManager
+
+moveit_simple_controller_manager:
+  controller_names:
+    - blue_arm_controller
+    - green_arm_controller
+    - blue_gripper_controller
+    - green_gripper_controller
+
+  blue_arm_controller:
+    type: FollowJointTrajectory
+    action_ns: follow_joint_trajectory
+    default: true
+    joints:
+      - blue_J1
+      - blue_J2
+      - blue_J3
+      - blue_J4
+      - blue_J5
+      - blue_J6
+
+  green_arm_controller:
+    type: FollowJointTrajectory
+    action_ns: follow_joint_trajectory
+    default: true
+    joints:
+      - green_J1
+      - green_J2
+      - green_J3
+      - green_J4
+      - green_J5
+      - green_J6
+
+  blue_gripper_controller:
+    type: FollowJointTrajectory
+    action_ns: follow_joint_trajectory
+    default: true
+    joints:
+      - blue_robotiq_85_left_knuckle_joint
+      - blue_robotiq_85_right_knuckle_joint
+
+  green_gripper_controller:
+    type: FollowJointTrajectory
+    action_ns: follow_joint_trajectory
+    default: true
+    joints:
+      - green_robotiq_85_left_knuckle_joint
+      - green_robotiq_85_right_knuckle_joint

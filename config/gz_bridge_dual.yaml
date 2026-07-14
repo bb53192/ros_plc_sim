@@ -1,0 +1,8 @@
+# gz <-> ROS bridge for the two-arm sorting cell.
+# M2: clock only (needed for use_sim_time). M3 extends this with the two station contact
+# sensors, the two overhead camera images, and the two gate position commands.
+- ros_topic_name: "/clock"
+  gz_topic_name: "/clock"
+  ros_type_name: "rosgraph_msgs/msg/Clock"
+  gz_type_name: "gz.msgs.Clock"
+  direction: "GZ_TO_ROS"
