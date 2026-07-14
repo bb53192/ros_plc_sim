@@ -14,6 +14,7 @@ install(
     scripts/cell_io.py
     scripts/cell_mode.py
     scripts/color_classifier.py
+    scripts/sort_cell.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
