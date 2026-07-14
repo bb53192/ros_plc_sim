@@ -1,8 +1,51 @@
 # gz <-> ROS bridge for the two-arm sorting cell.
-# M2: clock only (needed for use_sim_time). M3 extends this with the two station contact
-# sensors, the two overhead camera images, and the two gate position commands.
 - ros_topic_name: "/clock"
   gz_topic_name: "/clock"
   ros_type_name: "rosgraph_msgs/msg/Clock"
   gz_type_name: "gz.msgs.Clock"
   direction: "GZ_TO_ROS"
+
+# Belt speed command (Float64 -> gz TrackController; negative drives parts toward the arms).
+- ros_topic_name: "/conveyor/belt_cmd"
+  gz_topic_name: "/model/belt_track/link/base_link/track_cmd_vel"
+  ros_type_name: "std_msgs/msg/Float64"
+  gz_type_name: "gz.msgs.Double"
+  direction: "ROS_TO_GZ"
+
+# Station A (blue) contact sensor -> ROS. Non-empty while a part presses gate A's barrier.
+- ros_topic_name: "/station_a/contacts"
+  gz_topic_name: "/world/sorting_cell/model/gate_a/link/barrier/sensor/gate_contact/contact"
+  ros_type_name: "ros_gz_interfaces/msg/Contacts"
+  gz_type_name: "gz.msgs.Contacts"
+  direction: "GZ_TO_ROS"
+
+# Station B (green) contact sensor -> ROS.
+- ros_topic_name: "/station_b/contacts"
+  gz_topic_name: "/world/sorting_cell/model/gate_b/link/barrier/sensor/gate_contact/contact"
+  ros_type_name: "ros_gz_interfaces/msg/Contacts"
+  gz_type_name: "gz.msgs.Contacts"
+  direction: "GZ_TO_ROS"
+
+# Overhead camera images -> ROS (for the color classifier).
+- ros_topic_name: "/station_a/image"
+  gz_topic_name: "/station_a_image"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: "GZ_TO_ROS"
+- ros_topic_name: "/station_b/image"
+  gz_topic_name: "/station_b_image"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: "GZ_TO_ROS"
+
+# Gate position commands (Float64 -> gz JointPositionController; 0 = closed/down, 0.12 = open/up).
+- ros_topic_name: "/gate_a/cmd_pos"
+  gz_topic_name: "/gate_a/cmd_pos"
+  ros_type_name: "std_msgs/msg/Float64"
+  gz_type_name: "gz.msgs.Double"
+  direction: "ROS_TO_GZ"
+- ros_topic_name: "/gate_b/cmd_pos"
+  gz_topic_name: "/gate_b/cmd_pos"
+  ros_type_name: "std_msgs/msg/Float64"
+  gz_type_name: "gz.msgs.Double"
+  direction: "ROS_TO_GZ"

@@ -1,7 +1,11 @@
 <?xml version="1.0" ?>
 <!-- Two-arm color-sorting line (dual-arm-color-sorting branch). Seeded from gripper_cell.sdf.
-     M1 adds only the Sensors system plugin + one overhead camera (render smoke test); the second
-     station, gates, boxes, unsorted bin and colored parts arrive in M3. -->
+     Belt drives parts toward -X: they meet station B (green, x=1.40) first, then station A
+     (blue, x=0.40), then fall off the belt end into the unsorted bin.
+     Each station has a RETRACTABLE GATE (a barrier on a Z-prismatic joint, driven by a
+     JointPositionController) with a contact sensor, and an overhead camera. The gate is CLOSED
+     (down) to stop/hold a part and OPEN (raised +0.12 m) to let a non-matching part pass under
+     on the belt. No teleporting parts. -->
 <sdf version="1.8">
   <world name="sorting_cell">
     <physics name="1ms" type="ignition.physics.sim" default="true">
@@ -34,95 +38,153 @@
       <static>true</static>
       <link name="link">
         <collision name="collision">
-          <geometry>
-            <plane>
-              <normal>0 0 1</normal>
-              <size>100 100</size>
-            </plane>
-          </geometry>
+          <geometry><plane><normal>0 0 1</normal><size>100 100</size></plane></geometry>
         </collision>
         <visual name="visual">
-          <geometry>
-            <plane>
-              <normal>0 0 1</normal>
-              <size>100 100</size>
-            </plane>
-          </geometry>
-          <material>
-            <ambient>0.8 0.8 0.8 1</ambient>
-            <diffuse>0.8 0.8 0.8 1</diffuse>
-          </material>
+          <geometry><plane><normal>0 0 1</normal><size>100 100</size></plane></geometry>
+          <material><ambient>0.8 0.8 0.8 1</ambient><diffuse>0.8 0.8 0.8 1</diffuse></material>
         </visual>
       </link>
     </model>
 
-    <!-- ================= Conveyor: real friction belt (from gripper_cell.sdf) ================= -->
+    <!-- ================= Conveyor: real friction belt =================
+         Lengthened vs gripper_cell.sdf: size X=2.15, pose x=1.475 -> spans x in [0.40, 2.55],
+         top face at z=0.55. Driven along -X via the TrackController (track_cmd_vel). -->
     <model name="belt_track">
-      <pose>1.15 0.35 0 0 0 0</pose>
+      <pose>1.475 0.35 0 0 0 0</pose>
       <static>1</static>
       <link name="base_link">
         <pose>0 0 0.50 0 0 0</pose>
         <collision name="belt_col">
-          <geometry><box><size>1.5 0.30 0.10</size></box></geometry>
+          <geometry><box><size>2.15 0.30 0.10</size></box></geometry>
           <surface><friction><ode><mu>0.7</mu><mu2>150</mu2><fdir1>0 1 0</fdir1></ode></friction></surface>
         </collision>
         <visual name="belt_vis">
-          <geometry><box><size>1.5 0.30 0.10</size></box></geometry>
+          <geometry><box><size>2.15 0.30 0.10</size></box></geometry>
           <material><ambient>0.05 0.05 0.6 1</ambient><diffuse>0.08 0.08 0.75 1</diffuse></material>
         </visual>
         <collision name="roll_a_col">
-          <pose>0.75 0 0 -1.5708 0 0</pose>
+          <pose>1.075 0 0 -1.5708 0 0</pose>
           <geometry><cylinder><length>0.30</length><radius>0.05</radius></cylinder></geometry>
         </collision>
         <visual name="roll_a_vis">
-          <pose>0.75 0 0 -1.5708 0 0</pose>
+          <pose>1.075 0 0 -1.5708 0 0</pose>
           <geometry><cylinder><length>0.30</length><radius>0.05</radius></cylinder></geometry>
           <material><ambient>0.2 0.2 0.2 1</ambient><diffuse>0.2 0.2 0.2 1</diffuse></material>
         </visual>
         <collision name="roll_b_col">
-          <pose>-0.75 0 0 -1.5708 0 0</pose>
+          <pose>-1.075 0 0 -1.5708 0 0</pose>
           <geometry><cylinder><length>0.30</length><radius>0.05</radius></cylinder></geometry>
         </collision>
         <visual name="roll_b_vis">
-          <pose>-0.75 0 0 -1.5708 0 0</pose>
+          <pose>-1.075 0 0 -1.5708 0 0</pose>
           <geometry><cylinder><length>0.30</length><radius>0.05</radius></cylinder></geometry>
           <material><ambient>0.2 0.2 0.2 1</ambient><diffuse>0.2 0.2 0.2 1</diffuse></material>
         </visual>
       </link>
-      <link name="leg_1"><pose>0.7 0.12 0.225 0 0 0</pose><visual name="v"><geometry><box><size>0.05 0.05 0.45</size></box></geometry><material><ambient>0.25 0.25 0.25 1</ambient><diffuse>0.25 0.25 0.25 1</diffuse></material></visual></link>
-      <link name="leg_2"><pose>0.7 -0.12 0.225 0 0 0</pose><visual name="v"><geometry><box><size>0.05 0.05 0.45</size></box></geometry><material><ambient>0.25 0.25 0.25 1</ambient><diffuse>0.25 0.25 0.25 1</diffuse></material></visual></link>
-      <link name="leg_3"><pose>-0.7 0.12 0.225 0 0 0</pose><visual name="v"><geometry><box><size>0.05 0.05 0.45</size></box></geometry><material><ambient>0.25 0.25 0.25 1</ambient><diffuse>0.25 0.25 0.25 1</diffuse></material></visual></link>
-      <link name="leg_4"><pose>-0.7 -0.12 0.225 0 0 0</pose><visual name="v"><geometry><box><size>0.05 0.05 0.45</size></box></geometry><material><ambient>0.25 0.25 0.25 1</ambient><diffuse>0.25 0.25 0.25 1</diffuse></material></visual></link>
+      <link name="leg_1"><pose>0.95 0.12 0.225 0 0 0</pose><visual name="v"><geometry><box><size>0.05 0.05 0.45</size></box></geometry><material><ambient>0.25 0.25 0.25 1</ambient><diffuse>0.25 0.25 0.25 1</diffuse></material></visual></link>
+      <link name="leg_2"><pose>0.95 -0.12 0.225 0 0 0</pose><visual name="v"><geometry><box><size>0.05 0.05 0.45</size></box></geometry><material><ambient>0.25 0.25 0.25 1</ambient><diffuse>0.25 0.25 0.25 1</diffuse></material></visual></link>
+      <link name="leg_3"><pose>2.0 0.12 0.225 0 0 0</pose><visual name="v"><geometry><box><size>0.05 0.05 0.45</size></box></geometry><material><ambient>0.25 0.25 0.25 1</ambient><diffuse>0.25 0.25 0.25 1</diffuse></material></visual></link>
+      <link name="leg_4"><pose>2.0 -0.12 0.225 0 0 0</pose><visual name="v"><geometry><box><size>0.05 0.05 0.45</size></box></geometry><material><ambient>0.25 0.25 0.25 1</ambient><diffuse>0.25 0.25 0.25 1</diffuse></material></visual></link>
       <plugin filename="gz-sim-track-controller-system" name="gz::sim::systems::TrackController">
         <link>base_link</link>
       </plugin>
     </model>
 
-    <!-- End stop + part-present sensor at the belt's delivery (low-X) end (from gripper_cell.sdf).
-         Becomes station A in M3. -->
-    <model name="conveyor_end_stop">
-      <static>true</static>
+    <!-- ============ Station A gate (blue, downstream, x=0.40 = belt low end) ============
+         Barrier on a Z-prismatic joint anchored to the world. CLOSED (joint pos 0): barrier
+         spans z 0.555..0.655, blocks the 4 cm part (top ~0.59) and holds it for the blue arm.
+         OPEN (joint pos +0.12): barrier bottom rises to 0.675, part passes under and rolls off
+         the belt end into the unsorted bin. Contact sensor fires while a part presses the
+         barrier. -->
+    <model name="gate_a">
       <pose>0.40 0.35 0 0 0 0</pose>
-      <link name="stop">
-        <pose>0 0 0.55 0 0 0</pose>
+      <link name="barrier">
+        <pose>0 0 0.605 0 0 0</pose>
+        <inertial>
+          <mass>0.2</mass>
+          <inertia><ixx>0.002</ixx><iyy>0.002</iyy><izz>0.002</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
+        </inertial>
         <collision name="collision">
           <geometry><box><size>0.02 0.30 0.10</size></box></geometry>
         </collision>
-        <sensor name="end_contact" type="contact">
+        <sensor name="gate_contact" type="contact">
           <contact><collision>collision</collision></contact>
           <update_rate>30</update_rate>
           <always_on>true</always_on>
         </sensor>
         <visual name="visual">
           <geometry><box><size>0.02 0.30 0.10</size></box></geometry>
-          <material><ambient>0.6 0.1 0.1 1</ambient><diffuse>0.75 0.12 0.12 1</diffuse></material>
+          <material><ambient>0.1 0.2 0.6 1</ambient><diffuse>0.12 0.24 0.75 1</diffuse></material>
         </visual>
       </link>
+      <joint name="lift" type="prismatic">
+        <parent>world</parent>
+        <child>barrier</child>
+        <axis>
+          <xyz>0 0 1</xyz>
+          <limit><lower>0</lower><upper>0.15</upper><effort>500</effort></limit>
+          <dynamics><damping>5.0</damping></dynamics>
+        </axis>
+      </joint>
+      <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+        <joint_name>lift</joint_name>
+        <topic>/gate_a/cmd_pos</topic>
+        <p_gain>800</p_gain>
+        <i_gain>40</i_gain>
+        <d_gain>15</d_gain>
+        <i_max>50</i_max>
+        <i_min>-50</i_min>
+        <cmd_max>300</cmd_max>
+        <cmd_min>-300</cmd_min>
+      </plugin>
     </model>
 
-    <!-- ============ M1: overhead camera above the station-A pick point ============
-         Static model; camera looks straight DOWN (pitch +90deg maps the camera's +X axis to
-         world -Z). Publishes gz.msgs.Image on /station_a_cam. Bridged to ROS in M3. -->
+    <!-- ============ Station B gate (green, upstream, x=1.40) ============ -->
+    <model name="gate_b">
+      <pose>1.40 0.35 0 0 0 0</pose>
+      <link name="barrier">
+        <pose>0 0 0.605 0 0 0</pose>
+        <inertial>
+          <mass>0.2</mass>
+          <inertia><ixx>0.002</ixx><iyy>0.002</iyy><izz>0.002</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
+        </inertial>
+        <collision name="collision">
+          <geometry><box><size>0.02 0.30 0.10</size></box></geometry>
+        </collision>
+        <sensor name="gate_contact" type="contact">
+          <contact><collision>collision</collision></contact>
+          <update_rate>30</update_rate>
+          <always_on>true</always_on>
+        </sensor>
+        <visual name="visual">
+          <geometry><box><size>0.02 0.30 0.10</size></box></geometry>
+          <material><ambient>0.1 0.5 0.15 1</ambient><diffuse>0.12 0.65 0.18 1</diffuse></material>
+        </visual>
+      </link>
+      <joint name="lift" type="prismatic">
+        <parent>world</parent>
+        <child>barrier</child>
+        <axis>
+          <xyz>0 0 1</xyz>
+          <limit><lower>0</lower><upper>0.15</upper><effort>500</effort></limit>
+          <dynamics><damping>5.0</damping></dynamics>
+        </axis>
+      </joint>
+      <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+        <joint_name>lift</joint_name>
+        <topic>/gate_b/cmd_pos</topic>
+        <p_gain>800</p_gain>
+        <i_gain>40</i_gain>
+        <d_gain>15</d_gain>
+        <i_max>50</i_max>
+        <i_min>-50</i_min>
+        <cmd_max>300</cmd_max>
+        <cmd_min>-300</cmd_min>
+      </plugin>
+    </model>
+
+    <!-- ============ Overhead cameras (look straight down; pitch +90deg) ============ -->
     <model name="station_a_camera">
       <static>true</static>
       <pose>0.40 0.35 1.30 0 1.5708 0</pose>
@@ -130,26 +192,84 @@
         <sensor name="cam" type="camera">
           <always_on>1</always_on>
           <update_rate>10</update_rate>
-          <topic>station_a_cam</topic>
+          <topic>station_a_image</topic>
           <camera>
             <horizontal_fov>1.0</horizontal_fov>
-            <image>
-              <width>320</width>
-              <height>240</height>
-              <format>R8G8B8</format>
-            </image>
-            <clip>
-              <near>0.1</near>
-              <far>5.0</far>
-            </clip>
+            <image><width>320</width><height>240</height><format>R8G8B8</format></image>
+            <clip><near>0.1</near><far>5.0</far></clip>
+          </camera>
+        </sensor>
+      </link>
+    </model>
+    <model name="station_b_camera">
+      <static>true</static>
+      <pose>1.40 0.35 1.30 0 1.5708 0</pose>
+      <link name="link">
+        <sensor name="cam" type="camera">
+          <always_on>1</always_on>
+          <update_rate>10</update_rate>
+          <topic>station_b_image</topic>
+          <camera>
+            <horizontal_fov>1.0</horizontal_fov>
+            <image><width>320</width><height>240</height><format>R8G8B8</format></image>
+            <clip><near>0.1</near><far>5.0</far></clip>
           </camera>
         </sensor>
       </link>
     </model>
 
-    <!-- One workpiece at the belt feed (high-X) end (from gripper_cell.sdf). -->
+    <!-- ============ Collection boxes (open-top crate on a pedestal, ~belt height) ============ -->
+    <!-- BLUE box beside the blue arm (origin), on the -Y side. -->
+    <model name="blue_box">
+      <static>true</static>
+      <pose>0.0 -0.65 0.45 0 0 0</pose>
+      <link name="bottom"><pose>0 0 0.01 0 0 0</pose>
+        <collision name="c"><geometry><box><size>0.30 0.30 0.02</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.30 0.30 0.02</size></box></geometry><material><ambient>0.1 0.2 0.6 1</ambient><diffuse>0.12 0.24 0.75 1</diffuse></material></visual></link>
+      <link name="wpx"><pose>0.14 0 0.095 0 0 0</pose><collision name="c"><geometry><box><size>0.02 0.30 0.15</size></box></geometry></collision><visual name="v"><geometry><box><size>0.02 0.30 0.15</size></box></geometry><material><ambient>0.1 0.2 0.6 1</ambient><diffuse>0.12 0.24 0.75 1</diffuse></material></visual></link>
+      <link name="wnx"><pose>-0.14 0 0.095 0 0 0</pose><collision name="c"><geometry><box><size>0.02 0.30 0.15</size></box></geometry></collision><visual name="v"><geometry><box><size>0.02 0.30 0.15</size></box></geometry><material><ambient>0.1 0.2 0.6 1</ambient><diffuse>0.12 0.24 0.75 1</diffuse></material></visual></link>
+      <link name="wpy"><pose>0 0.14 0.095 0 0 0</pose><collision name="c"><geometry><box><size>0.30 0.02 0.15</size></box></geometry></collision><visual name="v"><geometry><box><size>0.30 0.02 0.15</size></box></geometry><material><ambient>0.1 0.2 0.6 1</ambient><diffuse>0.12 0.24 0.75 1</diffuse></material></visual></link>
+      <link name="wny"><pose>0 -0.14 0.095 0 0 0</pose><collision name="c"><geometry><box><size>0.30 0.02 0.15</size></box></geometry></collision><visual name="v"><geometry><box><size>0.30 0.02 0.15</size></box></geometry><material><ambient>0.1 0.2 0.6 1</ambient><diffuse>0.12 0.24 0.75 1</diffuse></material></visual></link>
+      <link name="ped_1"><pose>0.13 0.13 -0.225 0 0 0</pose><collision name="c"><geometry><box><size>0.04 0.04 0.45</size></box></geometry></collision><visual name="v"><geometry><box><size>0.04 0.04 0.45</size></box></geometry><material><ambient>0.25 0.25 0.25 1</ambient><diffuse>0.25 0.25 0.25 1</diffuse></material></visual></link>
+      <link name="ped_2"><pose>0.13 -0.13 -0.225 0 0 0</pose><collision name="c"><geometry><box><size>0.04 0.04 0.45</size></box></geometry></collision><visual name="v"><geometry><box><size>0.04 0.04 0.45</size></box></geometry><material><ambient>0.25 0.25 0.25 1</ambient><diffuse>0.25 0.25 0.25 1</diffuse></material></visual></link>
+      <link name="ped_3"><pose>-0.13 0.13 -0.225 0 0 0</pose><collision name="c"><geometry><box><size>0.04 0.04 0.45</size></box></geometry></collision><visual name="v"><geometry><box><size>0.04 0.04 0.45</size></box></geometry><material><ambient>0.25 0.25 0.25 1</ambient><diffuse>0.25 0.25 0.25 1</diffuse></material></visual></link>
+      <link name="ped_4"><pose>-0.13 -0.13 -0.225 0 0 0</pose><collision name="c"><geometry><box><size>0.04 0.04 0.45</size></box></geometry></collision><visual name="v"><geometry><box><size>0.04 0.04 0.45</size></box></geometry><material><ambient>0.25 0.25 0.25 1</ambient><diffuse>0.25 0.25 0.25 1</diffuse></material></visual></link>
+    </model>
+    <!-- GREEN box beside the green arm (x=1.0), on the -Y side. -->
+    <model name="green_box">
+      <static>true</static>
+      <pose>1.0 -0.65 0.45 0 0 0</pose>
+      <link name="bottom"><pose>0 0 0.01 0 0 0</pose>
+        <collision name="c"><geometry><box><size>0.30 0.30 0.02</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.30 0.30 0.02</size></box></geometry><material><ambient>0.1 0.5 0.15 1</ambient><diffuse>0.12 0.65 0.18 1</diffuse></material></visual></link>
+      <link name="wpx"><pose>0.14 0 0.095 0 0 0</pose><collision name="c"><geometry><box><size>0.02 0.30 0.15</size></box></geometry></collision><visual name="v"><geometry><box><size>0.02 0.30 0.15</size></box></geometry><material><ambient>0.1 0.5 0.15 1</ambient><diffuse>0.12 0.65 0.18 1</diffuse></material></visual></link>
+      <link name="wnx"><pose>-0.14 0 0.095 0 0 0</pose><collision name="c"><geometry><box><size>0.02 0.30 0.15</size></box></geometry></collision><visual name="v"><geometry><box><size>0.02 0.30 0.15</size></box></geometry><material><ambient>0.1 0.5 0.15 1</ambient><diffuse>0.12 0.65 0.18 1</diffuse></material></visual></link>
+      <link name="wpy"><pose>0 0.14 0.095 0 0 0</pose><collision name="c"><geometry><box><size>0.30 0.02 0.15</size></box></geometry></collision><visual name="v"><geometry><box><size>0.30 0.02 0.15</size></box></geometry><material><ambient>0.1 0.5 0.15 1</ambient><diffuse>0.12 0.65 0.18 1</diffuse></material></visual></link>
+      <link name="wny"><pose>0 -0.14 0.095 0 0 0</pose><collision name="c"><geometry><box><size>0.30 0.02 0.15</size></box></geometry></collision><visual name="v"><geometry><box><size>0.30 0.02 0.15</size></box></geometry><material><ambient>0.1 0.5 0.15 1</ambient><diffuse>0.12 0.65 0.18 1</diffuse></material></visual></link>
+      <link name="ped_1"><pose>0.13 0.13 -0.225 0 0 0</pose><collision name="c"><geometry><box><size>0.04 0.04 0.45</size></box></geometry></collision><visual name="v"><geometry><box><size>0.04 0.04 0.45</size></box></geometry><material><ambient>0.25 0.25 0.25 1</ambient><diffuse>0.25 0.25 0.25 1</diffuse></material></visual></link>
+      <link name="ped_2"><pose>0.13 -0.13 -0.225 0 0 0</pose><collision name="c"><geometry><box><size>0.04 0.04 0.45</size></box></geometry></collision><visual name="v"><geometry><box><size>0.04 0.04 0.45</size></box></geometry><material><ambient>0.25 0.25 0.25 1</ambient><diffuse>0.25 0.25 0.25 1</diffuse></material></visual></link>
+      <link name="ped_3"><pose>-0.13 0.13 -0.225 0 0 0</pose><collision name="c"><geometry><box><size>0.04 0.04 0.45</size></box></geometry></collision><visual name="v"><geometry><box><size>0.04 0.04 0.45</size></box></geometry><material><ambient>0.25 0.25 0.25 1</ambient><diffuse>0.25 0.25 0.25 1</diffuse></material></visual></link>
+      <link name="ped_4"><pose>-0.13 -0.13 -0.225 0 0 0</pose><collision name="c"><geometry><box><size>0.04 0.04 0.45</size></box></geometry></collision><visual name="v"><geometry><box><size>0.04 0.04 0.45</size></box></geometry><material><ambient>0.25 0.25 0.25 1</ambient><diffuse>0.25 0.25 0.25 1</diffuse></material></visual></link>
+    </model>
+
+    <!-- ============ Unsorted bin: floor crate past the belt low-X end ============
+         Catches parts that fall off the belt when gate A opens for a non-blue part. -->
+    <model name="unsorted_bin">
+      <static>true</static>
+      <pose>0.10 0.35 0 0 0 0</pose>
+      <link name="bottom"><pose>0 0 0.02 0 0 0</pose>
+        <collision name="c"><geometry><box><size>0.44 0.44 0.04</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.44 0.44 0.04</size></box></geometry><material><ambient>0.5 0.5 0.5 1</ambient><diffuse>0.5 0.5 0.5 1</diffuse></material></visual></link>
+      <link name="wpx"><pose>0.21 0 0.15 0 0 0</pose><collision name="c"><geometry><box><size>0.02 0.44 0.30</size></box></geometry></collision><visual name="v"><geometry><box><size>0.02 0.44 0.30</size></box></geometry><material><ambient>0.5 0.5 0.5 1</ambient><diffuse>0.5 0.5 0.5 1</diffuse></material></visual></link>
+      <link name="wnx"><pose>-0.21 0 0.15 0 0 0</pose><collision name="c"><geometry><box><size>0.02 0.44 0.30</size></box></geometry></collision><visual name="v"><geometry><box><size>0.02 0.44 0.30</size></box></geometry><material><ambient>0.5 0.5 0.5 1</ambient><diffuse>0.5 0.5 0.5 1</diffuse></material></visual></link>
+      <link name="wpy"><pose>0 0.21 0.15 0 0 0</pose><collision name="c"><geometry><box><size>0.44 0.02 0.30</size></box></geometry></collision><visual name="v"><geometry><box><size>0.44 0.02 0.30</size></box></geometry><material><ambient>0.5 0.5 0.5 1</ambient><diffuse>0.5 0.5 0.5 1</diffuse></material></visual></link>
+      <link name="wny"><pose>0 -0.21 0.15 0 0 0</pose><collision name="c"><geometry><box><size>0.44 0.02 0.30</size></box></geometry></collision><visual name="v"><geometry><box><size>0.44 0.02 0.30</size></box></geometry><material><ambient>0.5 0.5 0.5 1</ambient><diffuse>0.5 0.5 0.5 1</diffuse></material></visual></link>
+    </model>
+
+    <!-- One workpiece at the belt feed (high-X) end. Default red; the orchestrator (M5)
+         removes/respawns it with a random color each cycle. -->
     <model name="workpiece_1">
-      <pose>1.75 0.35 0.58 0 0 0</pose>
+      <pose>2.40 0.35 0.58 0 0 0</pose>
       <link name="link">
         <inertial>
           <mass>0.05</mass>
@@ -157,18 +277,11 @@
         </inertial>
         <collision name="collision">
           <geometry><box><size>0.04 0.04 0.04</size></box></geometry>
-          <surface>
-            <friction>
-              <ode><mu>50</mu><mu2>50</mu2></ode>
-            </friction>
-          </surface>
+          <surface><friction><ode><mu>50</mu><mu2>50</mu2></ode></friction></surface>
         </collision>
         <visual name="visual">
           <geometry><box><size>0.04 0.04 0.04</size></box></geometry>
-          <material>
-            <ambient>0.8 0.1 0.1 1</ambient>
-            <diffuse>0.8 0.1 0.1 1</diffuse>
-          </material>
+          <material><ambient>0.8 0.1 0.1 1</ambient><diffuse>0.8 0.1 0.1 1</diffuse></material>
         </visual>
       </link>
     </model>
