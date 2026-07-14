@@ -16,6 +16,7 @@ directly), generalized into an `Arm` helper parameterized by joint prefix / grou
 """
 from __future__ import annotations
 
+import math
 import pathlib
 import random
 import subprocess
@@ -33,6 +34,7 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from ros_gz_interfaces.msg import Contacts
+from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64, String
 from trajectory_msgs.msg import JointTrajectoryPoint
 
@@ -49,15 +51,34 @@ GATE_OPEN = 0.12
 GATE_CLOSED = 0.0
 
 
+def _quat_mul(a, b):
+    ax, ay, az, aw = a
+    bx, by, bz, bw = b
+    return (aw * bx + ax * bw + ay * bz - az * by,
+            aw * by - ax * bz + ay * bw + az * bx,
+            aw * bz + ax * by - ay * bx + az * bw,
+            aw * bw - ax * bx - ay * by - az * bz)
+
+
+def _yaw_follow_quat(base_quat, dz):
+    """base_quat rotated about world Z by dz. Applied per waypoint with dz = azimuth(wp) -
+    azimuth(pick), it keeps the arm's posture across the pick->place swing so J1 (base yaw)
+    carries the motion instead of the wrist unwinding to hold a fixed world orientation."""
+    h = dz / 2.0
+    return _quat_mul((0.0, 0.0, math.sin(h), math.cos(h)), base_quat)
+
+
 class Arm:
     """One CRX arm: /compute_ik -> arm_controller / gripper_controller (direct trajectories)."""
 
     def __init__(self, node: Node, prefix: str, group: str, ik_link: str,
-                 arm_action: str, grip_action: str, wp: dict, shared: dict, cg) -> None:
+                 arm_action: str, grip_action: str, wp: dict, shared: dict, cg,
+                 base_xy=(0.0, 0.0)) -> None:
         self.node = node
         self.log = node.get_logger()
         self.group = group
         self.ik_link = ik_link
+        self.base_x, self.base_y = base_xy
         self.arm_joints = [f"{prefix}J{i}" for i in range(1, 7)]
         self.grip_joints = [f"{prefix}robotiq_85_left_knuckle_joint",
                             f"{prefix}robotiq_85_right_knuckle_joint"]
@@ -70,6 +91,12 @@ class Arm:
         self.home = [shared["home"][f"J{i}"] for i in range(1, 7)]
         self.g_open = shared["g_open"]
         self.g_closed = shared["g_closed"]
+        # azimuth of the grasp point from the arm base; other waypoints rotate the tool
+        # orientation about world Z relative to this, so the base yaw (J1) carries the swing.
+        p = wp["pick"]
+        self.az_pick = math.atan2(float(p["y"]) - self.base_y, float(p["x"]) - self.base_x)
+        self._ref = None            # cached belt-side reference posture (see _ref_posture)
+        self._last_joints = None    # last commanded joints (for short-way unwrapping)
 
         self.ik = node.create_client(GetPositionIK, "/compute_ik", callback_group=cg)
         self.arm = ActionClient(node, FollowJointTrajectory, arm_action, callback_group=cg)
@@ -88,27 +115,61 @@ class Arm:
             raise RuntimeError("timed out waiting on future")
         return future.result()
 
-    def _solve(self, name: str) -> list:
-        t = self.wp[name]
+    def _solve_raw(self, x, y, z, quat, seed=None) -> list:
         req = GetPositionIK.Request()
         req.ik_request.group_name = self.group
         req.ik_request.ik_link_name = self.ik_link
-        req.ik_request.robot_state.is_diff = True
+        if seed is not None:
+            js = JointState()
+            js.name = list(self.arm_joints)
+            js.position = [float(v) for v in seed]
+            req.ik_request.robot_state.joint_state = js
+            req.ik_request.robot_state.is_diff = False
+        else:
+            req.ik_request.robot_state.is_diff = True
         req.ik_request.avoid_collisions = False
         req.ik_request.timeout.sec = 2
         ps = PoseStamped()
         ps.header.frame_id = self.frame
-        ps.pose.position.x = float(t["x"])
-        ps.pose.position.y = float(t["y"])
-        ps.pose.position.z = float(t["z"]) + self.off
+        ps.pose.position.x = float(x)
+        ps.pose.position.y = float(y)
+        ps.pose.position.z = float(z)
         (ps.pose.orientation.x, ps.pose.orientation.y,
-         ps.pose.orientation.z, ps.pose.orientation.w) = self.quat
+         ps.pose.orientation.z, ps.pose.orientation.w) = quat
         req.ik_request.pose_stamped = ps
         r = self._await(self.ik.call_async(req), timeout=8.0)
         if not r or r.error_code.val != 1:
-            raise RuntimeError(f"IK failed for '{name}' (group {self.group})")
+            raise RuntimeError(f"IK failed (group {self.group})")
         sol = dict(zip(r.solution.joint_state.name, r.solution.joint_state.position))
         return [sol[j] for j in self.arm_joints]
+
+    def _ref_posture(self) -> list:
+        """Natural belt-side posture at the grasp point (cached), used to seed every waypoint so
+        the base yaw (J1) — not the wrist — carries the pick<->place swing."""
+        if self._ref is None:
+            p = self.wp["pick"]
+            self._ref = self._solve_raw(p["x"], p["y"], float(p["z"]) + self.off, self.quat)
+        return self._ref
+
+    @staticmethod
+    def _unwrap(target, ref) -> float:
+        while target - ref > math.pi:
+            target -= 2 * math.pi
+        while target - ref < -math.pi:
+            target += 2 * math.pi
+        return target
+
+    def _solve(self, name: str) -> list:
+        t = self.wp[name]
+        dz = math.atan2(float(t["y"]) - self.base_y, float(t["x"]) - self.base_x) - self.az_pick
+        quat = _yaw_follow_quat(self.quat, dz)                 # orientation follows the base yaw
+        ref = self._ref_posture()
+        seed = [ref[0] + dz] + list(ref[1:])                   # reference posture with J1 pre-rotated
+        joints = self._solve_raw(t["x"], t["y"], float(t["z"]) + self.off, quat, seed=seed)
+        base = self._last_joints if self._last_joints is not None else seed
+        joints = [self._unwrap(j, b) for j, b in zip(joints, base)]  # shortest way from current
+        self._last_joints = joints
+        return joints
 
     def _traj(self, client, names, positions, secs):
         g = FollowJointTrajectory.Goal()
@@ -138,6 +199,7 @@ class Arm:
     def pick_place(self) -> None:
         """One full pick-and-place cycle into this arm's box."""
         self._arm_to(self.home)
+        self._last_joints = list(self.home)   # unwrap the first waypoint relative to home
         self._grip_to(self.g_open)
         self._go("pick_approach")
         self._go("pick")
@@ -185,12 +247,15 @@ class SortCell(Node):
         self.force_color = str(self.get_parameter("force_color").value)
 
         cg = ReentrantCallbackGroup()
+        # base_xy = each arm's world mount pose (see dual_crx_gz.urdf.xacro).
         self.blue = Arm(self, "blue_", "blue_manipulator", "blue_flange",
                         "/blue_arm_controller/follow_joint_trajectory",
-                        "/blue_gripper_controller/follow_joint_trajectory", d["blue"], shared, cg)
+                        "/blue_gripper_controller/follow_joint_trajectory", d["blue"], shared, cg,
+                        base_xy=(0.0, 0.0))
         self.green = Arm(self, "green_", "green_manipulator", "green_flange",
                          "/green_arm_controller/follow_joint_trajectory",
-                         "/green_gripper_controller/follow_joint_trajectory", d["green"], shared, cg)
+                         "/green_gripper_controller/follow_joint_trajectory", d["green"], shared, cg,
+                         base_xy=(1.0, 0.0))
 
         # ---- state
         self._belt_run = True

@@ -19,6 +19,7 @@ A fresh workpiece is respawned at the belt feed end after each cycle (gz set_pos
 """
 from __future__ import annotations
 
+import math
 import pathlib
 import subprocess
 import threading
@@ -35,11 +36,29 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from ros_gz_interfaces.msg import Contacts
+from sensor_msgs.msg import JointState
 from std_msgs.msg import Bool, Float64
 from trajectory_msgs.msg import JointTrajectoryPoint
 
 ARM = ["J1", "J2", "J3", "J4", "J5", "J6"]
 GRIP = ["robotiq_85_left_knuckle_joint", "robotiq_85_right_knuckle_joint"]
+
+
+def _quat_mul(a, b):
+    ax, ay, az, aw = a
+    bx, by, bz, bw = b
+    return (aw * bx + ax * bw + ay * bz - az * by,
+            aw * by - ax * bz + ay * bw + az * bx,
+            aw * bz + ax * by - ay * bx + az * bw,
+            aw * bw - ax * bx - ay * by - az * bz)
+
+
+def _yaw_follow_quat(base_quat, dz):
+    """base_quat rotated about world Z by dz. Per waypoint with dz = azimuth(wp) - azimuth(pick),
+    it keeps the arm posture across the pick->place swing so J1 carries it (the wrist doesn't
+    unwind to hold a fixed world orientation). Arm base is the world origin here."""
+    h = dz / 2.0
+    return _quat_mul((0.0, 0.0, math.sin(h), math.cos(h)), base_quat)
 
 
 class CellIO(Node):
@@ -70,6 +89,10 @@ class CellIO(Node):
         self.tcp = d["tcp"]
         self.g_open = float(d["gripper"]["open"])
         self.g_closed = float(d["gripper"]["closed"])
+        p = self.tcp["pick"]
+        self.az_pick = math.atan2(float(p["y"]), float(p["x"]))  # base at world origin
+        self._ref = None            # cached belt-side reference posture
+        self._last = None           # last commanded joints (ARM order) for short-way unwrapping
         self.belt_speed = float(self.get_parameter("belt_speed").value)
         self.world = self.get_parameter("world").value
         self.feed = list(self.get_parameter("feed_pose").value)
@@ -140,26 +163,62 @@ class CellIO(Node):
             raise RuntimeError("timed out waiting on future")
         return future.result()
 
-    def _solve(self, name: str) -> dict:
-        t = self.tcp[name]
+    def _solve_raw(self, x, y, z, quat, seed=None) -> list:
         req = GetPositionIK.Request()
         req.ik_request.group_name = "manipulator"
         req.ik_request.ik_link_name = "flange"
-        req.ik_request.robot_state.is_diff = True
+        if seed is not None:
+            js = JointState()
+            js.name = list(ARM)
+            js.position = [float(v) for v in seed]
+            req.ik_request.robot_state.joint_state = js
+            req.ik_request.robot_state.is_diff = False
+        else:
+            req.ik_request.robot_state.is_diff = True
         req.ik_request.avoid_collisions = False
         req.ik_request.timeout.sec = 2
         ps = PoseStamped()
         ps.header.frame_id = self.frame
-        ps.pose.position.x = float(t["x"])
-        ps.pose.position.y = float(t["y"])
-        ps.pose.position.z = float(t["z"]) + self.off
+        ps.pose.position.x = float(x)
+        ps.pose.position.y = float(y)
+        ps.pose.position.z = float(z)
         (ps.pose.orientation.x, ps.pose.orientation.y,
-         ps.pose.orientation.z, ps.pose.orientation.w) = self.quat
+         ps.pose.orientation.z, ps.pose.orientation.w) = quat
         req.ik_request.pose_stamped = ps
         r = self._await(self.ik.call_async(req), timeout=8.0)
         if not r or r.error_code.val != 1:
-            raise RuntimeError(f"IK failed for '{name}'")
-        return {k: v for k, v in zip(r.solution.joint_state.name, r.solution.joint_state.position) if k in ARM}
+            raise RuntimeError("IK failed")
+        sol = dict(zip(r.solution.joint_state.name, r.solution.joint_state.position))
+        return [sol[j] for j in ARM]
+
+    def _ref_posture(self) -> list:
+        if self._ref is None:
+            p = self.tcp["pick"]
+            self._ref = self._solve_raw(p["x"], p["y"], float(p["z"]) + self.off, self.quat)
+        return self._ref
+
+    @staticmethod
+    def _unwrap(target, ref) -> float:
+        while target - ref > math.pi:
+            target -= 2 * math.pi
+        while target - ref < -math.pi:
+            target += 2 * math.pi
+        return target
+
+    def _solve(self, name: str) -> dict:
+        # Orientation follows the base yaw and the IK is seeded with the reference posture at a
+        # pre-rotated J1, so J1 (not the wrist) carries the pick<->place swing; unwrap to the
+        # current joints so the controller takes the short way.
+        t = self.tcp[name]
+        dz = math.atan2(float(t["y"]), float(t["x"])) - self.az_pick
+        quat = _yaw_follow_quat(self.quat, dz)
+        ref = self._ref_posture()
+        seed = [ref[0] + dz] + list(ref[1:])
+        joints = self._solve_raw(t["x"], t["y"], float(t["z"]) + self.off, quat, seed=seed)
+        base = self._last if self._last is not None else seed
+        joints = [self._unwrap(j, b) for j, b in zip(joints, base)]
+        self._last = joints
+        return {ARM[i]: joints[i] for i in range(len(ARM))}
 
     def _traj(self, client, names, positions, secs):
         g = FollowJointTrajectory.Goal()
@@ -204,6 +263,7 @@ class CellIO(Node):
         try:
             self.get_logger().info("cycle: start")
             self._arm_to(self.home)
+            self._last = [self.home[j] for j in ARM]   # unwrap the first waypoint relative to home
             self._grip_to(self.g_open)
             self._go("pick_approach")
             self._go("pick")
