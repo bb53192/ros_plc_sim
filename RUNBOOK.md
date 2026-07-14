@@ -172,3 +172,60 @@ and **Start Robot** (Robot tab) drive the cell.
 | ros_plc_sim | github.com/bb53192/ros_plc_sim | `conveyor-belt-and-end-sensor` |
 | plc-ros2-bridge | github.com/bb53192/plc-ros2-bridge | `crx-cell-integration` |
 | ros_gui_bridge | github.com/CroboticSolutions/ros_gui_bridge | `ros2-rclpy-port` |
+
+---
+
+## 10. Two-arm color-sorting demo (`dual-arm-color-sorting` branch)
+
+A **second CRX-10iA + Robotiq arm** turns the cell into a color sorter. A part rides the belt
+past two in-series stations; overhead cameras classify its color; each arm takes its color, the
+rest fall into an unsorted bin. This is a **sim-side demo** — no OpenPLC/OPC-UA/Modbus wiring yet
+(see "PLC follow-up" below). The single-arm PLC cell (§1–9) is untouched.
+
+**Data flow**
+```
+belt (−X) →  Station B (green, x=1.40)  →  Station A (blue, x=0.40)  →  belt end → unsorted bin
+             cam /station_b/image           cam /station_a/image
+             gate /gate_b/cmd_pos           gate /gate_a/cmd_pos
+             green_ arm → green box         blue_ arm → blue box
+
+ color_classifier ×2  /station_{a,b}/image → /station_{a,b}/part_color  (blue|green|other|none)
+ sort_cell  ── reads contacts + colors, drives belt + gates, runs each arm's pick-place
+            ── /compute_ik (one move_group, groups blue_/green_manipulator) + *_arm/*_gripper controllers
+```
+Sorting logic: part stops at **B**; if **green** → green arm picks it into the green box; else
+gate B raises and it passes under to **A**; if **blue** → blue arm picks it into the blue box;
+else gate A raises and it drops off the belt end into the **unsorted bin**. One part at a time;
+a fresh, randomly-colored part is spawned at the feed end each cycle.
+
+**Run** (isolated graph, one terminal):
+```bash
+export ROS_DOMAIN_ID=10 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST   # keep off the live sim's graph
+cd /root/arms_ws && colcon build --symlink-install && source install/setup.bash
+ros2 launch ros_plc_sim dual_arm_sort.launch.py            # gazebo_gui:=false launch_rviz:=false for headless
+```
+Layered launch pieces (each usable alone): `dual_arm_sort_gz.launch.py` (Gazebo + dual
+ros2_control) → `dual_arm_sort_moveit.launch.py` (+ move_group /compute_ik) →
+`dual_arm_sort.launch.py` (+ classifiers + sort_cell).
+
+**Key files:** `urdf/dual_crx_gz.urdf.xacro` (blue_/green_ prefixed arms, one controller_manager),
+`srdf/dual_crx_robotiq.srdf`, `config/ros2_controllers_dual.yaml`, `worlds/sorting_cell.sdf`
+(belt, two retractable gates, two cameras, two boxes, unsorted bin), `config/gz_bridge_dual.yaml`,
+`scripts/color_classifier.py`, `scripts/sort_cell.py`, `config/dual_pick_place_waypoints.yaml`.
+
+**Gotchas**
+- **Camera render**: `sorting_cell.sdf` needs the `gz-sim-sensors-system` plugin (ogre2). Needs a
+  GPU/EGL render node; verify with `gz topic -e -t /station_a_image -n 1`.
+- **Belt + gate barriers are neutral gray** on purpose — the color classifier only trusts
+  saturated pixels, so a colored belt/gate would be misread. Cameras sit just +X of each gate
+  (over the part's rest spot), not over the barrier.
+- **Gates** are a barrier on a Z-prismatic joint held by a `JointPositionController`
+  (0 = closed/blocks, 0.12 = open/part passes under). `sort_cell` republishes belt + gate
+  commands at 10 Hz so the gz plugins hold their targets.
+- **Process hygiene when testing**: use a unique `GZ_PARTITION` per run and kill stale
+  `gz sim`/`parameter_bridge`/`color_classifier` by PID between runs — leftovers on domain 10
+  publish stale classifications and cause confusing results.
+
+**PLC follow-up (not in this branch):** expose per-arm `robot_busy`/`cycle_done`, a `part_color`
+input, and `gate_open` coils over the OpenPLC contract; add AUTO sequencing for both arms and
+HMI controls (mirrors §5 for the single arm).
