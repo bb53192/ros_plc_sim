@@ -61,7 +61,9 @@
         </collision>
         <visual name="belt_vis">
           <geometry><box><size>2.15 0.30 0.10</size></box></geometry>
-          <material><ambient>0.05 0.05 0.6 1</ambient><diffuse>0.08 0.08 0.75 1</diffuse></material>
+          <!-- Neutral gray (low saturation) so the overhead color cameras only see saturated
+               pixels on the workpiece, never the belt. -->
+          <material><ambient>0.3 0.3 0.3 1</ambient><diffuse>0.32 0.32 0.32 1</diffuse></material>
         </visual>
         <collision name="roll_a_col">
           <pose>1.075 0 0 -1.5708 0 0</pose>
@@ -115,7 +117,8 @@
         </sensor>
         <visual name="visual">
           <geometry><box><size>0.02 0.30 0.10</size></box></geometry>
-          <material><ambient>0.1 0.2 0.6 1</ambient><diffuse>0.12 0.24 0.75 1</diffuse></material>
+          <!-- Neutral gray: keeps the overhead color camera from ever seeing the gate itself. -->
+          <material><ambient>0.35 0.35 0.35 1</ambient><diffuse>0.37 0.37 0.37 1</diffuse></material>
         </visual>
       </link>
       <joint name="lift" type="prismatic">
@@ -159,7 +162,8 @@
         </sensor>
         <visual name="visual">
           <geometry><box><size>0.02 0.30 0.10</size></box></geometry>
-          <material><ambient>0.1 0.5 0.15 1</ambient><diffuse>0.12 0.65 0.18 1</diffuse></material>
+          <!-- Neutral gray: keeps the overhead color camera from ever seeing the gate itself. -->
+          <material><ambient>0.35 0.35 0.35 1</ambient><diffuse>0.37 0.37 0.37 1</diffuse></material>
         </visual>
       </link>
       <joint name="lift" type="prismatic">
@@ -187,7 +191,8 @@
     <!-- ============ Overhead cameras (look straight down; pitch +90deg) ============ -->
     <model name="station_a_camera">
       <static>true</static>
-      <pose>0.40 0.35 1.30 0 1.5708 0</pose>
+      <!-- Centered over where the part rests (just +X of the gate barrier), not on the barrier. -->
+      <pose>0.43 0.35 1.30 0 1.5708 0</pose>
       <link name="link">
         <sensor name="cam" type="camera">
           <always_on>1</always_on>
@@ -203,7 +208,8 @@
     </model>
     <model name="station_b_camera">
       <static>true</static>
-      <pose>1.40 0.35 1.30 0 1.5708 0</pose>
+      <!-- Centered over where the part rests (just +X of the gate barrier), not on the barrier. -->
+      <pose>1.43 0.35 1.30 0 1.5708 0</pose>
       <link name="link">
         <sensor name="cam" type="camera">
           <always_on>1</always_on>

@@ -13,6 +13,7 @@ install(
     scripts/crx_pick_place.py
     scripts/cell_io.py
     scripts/cell_mode.py
+    scripts/color_classifier.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
