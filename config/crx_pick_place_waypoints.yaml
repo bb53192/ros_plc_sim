@@ -10,7 +10,7 @@ flange_tcp_offset: 0.1208
 # forward posture (elbow does not swing back into the conveyor)
 orientation: {x: 0.50774, y: 0.49218, z: -0.50622, w: 0.49371}
 
-move_time: 2.5     # seconds per arm move (grasp is robust; RTF gives further wall-clock speedup)
+move_time: 1.5     # seconds per arm move (grasp verified reliable at this speed)
 grip_time: 2.0     # seconds per gripper move
 
 # home joint configuration (rad)

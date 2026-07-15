@@ -183,7 +183,7 @@ class Arm:
         if gh is None or not gh.accepted:
             raise RuntimeError("trajectory goal rejected")
         self._await(gh.get_result_async())
-        time.sleep(0.4)
+        time.sleep(0.15)   # brief settle between moves
 
     def _arm_to(self, positions, secs=None):
         self._traj(self.arm, self.arm_joints, positions, secs or self.move_time)
