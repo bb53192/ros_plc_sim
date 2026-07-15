@@ -19,6 +19,7 @@ from __future__ import annotations
 import math
 import pathlib
 import random
+import re
 import subprocess
 import threading
 import time
@@ -36,6 +37,7 @@ from rclpy.node import Node
 from ros_gz_interfaces.msg import Contacts
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64, String
+from tf2_msgs.msg import TFMessage
 from trajectory_msgs.msg import JointTrajectoryPoint
 
 # Part colors -> RGB. Weighted so the two sorted colors dominate the demo.
@@ -205,11 +207,85 @@ class Arm:
         self._go("pick")
         self._grip_to(self.g_closed)
         self._go("lift")
+        self._place_tail()
+
+    def _place_tail(self) -> None:
+        """From holding the part above the pick zone, carry it into the box and go home."""
         self._go("place_approach")
         self._go("place")
         self._grip_to(self.g_open)
         self._go("place_approach")
         self._arm_to(self.home)
+        self._last_joints = list(self.home)
+
+    # ------------------------------------------------------------------ on-the-fly intercept
+    def _solve_xyz(self, x, y, z) -> list:
+        """IK for a world TCP (x, y, z) with the yaw-following grasp orientation, seeded+unwrapped
+        from the last commanded joints (same convention as _solve). Updates _last_joints."""
+        dz = math.atan2(y - self.base_y, x - self.base_x) - self.az_pick
+        quat = _yaw_follow_quat(self.quat, dz)
+        ref = self._ref_posture()
+        seed = self._last_joints if self._last_joints is not None else [ref[0] + dz] + list(ref[1:])
+        j = self._solve_raw(x, y, z + self.off, quat, seed=seed)
+        j = [self._unwrap(a, b) for a, b in zip(j, seed)]
+        self._last_joints = j
+        return j
+
+    def move_to(self, x, y, z, secs=None) -> None:
+        self._arm_to(self._solve_xyz(x, y, z), secs)
+
+    def build_intercept(self, itc: dict, v: float, x0: float):
+        """Compute the co-move arm trajectory for grabbing a part that is at x0 (and moving -X at
+        speed v) when the trajectory STARTS. Returns (points, t_close) where points are
+        (positions, t_from_start) and t_close is when to start closing the gripper (arm at grasp
+        height, co-moving)."""
+        y, za, zg = float(itc["y"]), float(itc["z_approach"]), float(itc["z_grasp"])
+        td, tgr, tl = float(itc["descend_time"]), float(itc["grasp_time"]), float(itc["lift_time"])
+        x_grasp_end = x0 - v * (td + tgr)
+        # arm is pre-positioned at (x0, za). Descend while co-moving -X at v to meet the part at
+        # grasp height, hold (gripper closes), then lift STRAIGHT UP (x held -- the part is now in
+        # the gripper, so no need to keep chasing the belt, and it keeps the wrist out over the base).
+        pts = []
+        for xc, zc, tc in [
+            (x0 - v * td,   zg, td),                 # grasp start (end of descend)
+            (x_grasp_end,   zg, td + tgr),           # grasp end (part held)
+            (x_grasp_end,   za, td + tgr + tl),      # lift straight up
+        ]:
+            pts.append((self._solve_xyz(xc, y, zc), tc))
+        return pts, td
+
+    def fire_intercept(self, pts, t_close) -> None:
+        """Send the pre-computed co-move trajectory and close the gripper mid-glide. The gripper
+        goal holds open until t_close then closes, on the SAME sim clock as the arm, so the two
+        stay synced regardless of real-time factor."""
+        ga = FollowJointTrajectory.Goal()
+        ga.trajectory.joint_names = self.arm_joints
+        for positions, tc in pts:
+            p = JointTrajectoryPoint()
+            p.positions = [float(v) for v in positions]
+            p.time_from_start.sec = int(tc)
+            p.time_from_start.nanosec = int((tc % 1) * 1e9)
+            ga.trajectory.points.append(p)
+        arm_gh = self._await(self.arm.send_goal_async(ga))
+        if arm_gh is None or not arm_gh.accepted:
+            raise RuntimeError("intercept trajectory rejected")
+        # gripper: start closing DURING the last part of the descent so the jaws are already
+        # closing as they reach the moving cube (less chance of knocking it), and finish soon after
+        # grasp height so there is a firm-grip dwell before the lift.
+        tc1 = max(0.1, t_close - 0.4)
+        tc2 = t_close + 0.4
+        gg = FollowJointTrajectory.Goal()
+        gg.trajectory.joint_names = self.grip_joints
+        for pos, tc in [(self.g_open, tc1), (self.g_closed, tc2)]:
+            p = JointTrajectoryPoint()
+            p.positions = [float(pos), float(pos)]
+            p.time_from_start.sec = int(tc)
+            p.time_from_start.nanosec = int((tc % 1) * 1e9)
+            gg.trajectory.points.append(p)
+        self.grip.send_goal_async(gg)                 # fire and forget (runs on sim clock)
+        self._await(arm_gh.get_result_async())        # arm co-move (incl. lift) finished
+        self._last_joints = pts[-1][0]
+        time.sleep(0.3)
 
 
 class SortCell(Node):
@@ -222,6 +298,10 @@ class SortCell(Node):
         self.declare_parameter("present_timeout", 0.5)
         self.declare_parameter("settle_time", 1.5)
         self.declare_parameter("force_color", "")  # debug: force every part's color (blue/green/red/yellow)
+        # Experimental: green arm grabs the part in motion (belt never stops). The intercept aligns
+        # well but the dynamic grasp of the 4 cm cube isn't reliable yet (needs closed-loop feedback),
+        # so this defaults OFF -> the reliable static pick is used. Enable with on_the_fly:=true.
+        self.declare_parameter("on_the_fly", False)
 
         wp = self.get_parameter("waypoint_file").value
         path = (pathlib.Path(wp).expanduser() if wp
@@ -245,6 +325,8 @@ class SortCell(Node):
         self.present_timeout = float(self.get_parameter("present_timeout").value)
         self.settle_time = float(self.get_parameter("settle_time").value)
         self.force_color = str(self.get_parameter("force_color").value)
+        self.on_the_fly = bool(self.get_parameter("on_the_fly").value)
+        self.itc = d.get("green_intercept", {})
 
         cg = ReentrantCallbackGroup()
         # base_xy = each arm's world mount pose (see dual_crx_gz.urdf.xacro).
@@ -259,12 +341,14 @@ class SortCell(Node):
 
         # ---- state
         self._belt_run = True
+        self._belt_override = None   # temporary belt speed (m/s) during an on-the-fly grasp crawl
         self._counter = 0
         self._part_name = None
         self._gate_a = GATE_CLOSED
         self._gate_b = GATE_CLOSED
         self._last_contact = {"a": 0.0, "b": 0.0}
         self._color = {"a": "none", "b": "none"}
+        self._part_hist = []   # recent (monotonic_t, x) of the active part, for tracking
 
         # ---- I/O
         self.pub_belt = self.create_publisher(Float64, "/conveyor/belt_cmd", 10)
@@ -278,6 +362,7 @@ class SortCell(Node):
                                  lambda m: self._color.__setitem__("a", m.data), 10, callback_group=cg)
         self.create_subscription(String, "/station_b/part_color",
                                  lambda m: self._color.__setitem__("b", m.data), 10, callback_group=cg)
+        self.create_subscription(TFMessage, "/model_poses", self._on_poses, 10, callback_group=cg)
         self.create_timer(0.1, self._tick, callback_group=cg)  # hold belt + gate commands @10 Hz
         threading.Thread(target=self._run, daemon=True).start()
         self.get_logger().info("sort_cell up")
@@ -290,8 +375,45 @@ class SortCell(Node):
     def _present(self, station: str) -> bool:
         return (time.monotonic() - self._last_contact[station]) < self.present_timeout
 
+    def _on_poses(self, msg: TFMessage) -> None:
+        name = self._part_name
+        if not name:
+            return
+        for tf in msg.transforms:
+            if tf.child_frame_id == name:
+                self._part_hist.append((time.monotonic(), tf.transform.translation.x))
+                if len(self._part_hist) > 8:
+                    self._part_hist.pop(0)
+                break
+
+    def _part_x(self):
+        return self._part_hist[-1][1] if self._part_hist else None
+
+    def _gz_part_x(self):
+        """Query the active part's world x directly from gz (reliable here, unlike /model_poses).
+        Runs in the sequencer worker thread, so the blocking subprocess is fine. None on failure."""
+        if not self._part_name:
+            return None
+        try:
+            out = subprocess.run(["gz", "model", "-m", self._part_name, "-p"],
+                                 capture_output=True, timeout=2, text=True).stdout
+        except Exception:  # noqa: BLE001
+            return None
+        m = re.search(r"XYZ[^\n]*\n\s*\[\s*([-\d.eE]+)", out)
+        return float(m.group(1)) if m else None
+
+    def _part_speed(self):
+        """Magnitude of the part's -X motion (m/s), from the recent pose history; None if unknown."""
+        if len(self._part_hist) < 2:
+            return None
+        (t0, x0), (t1, x1) = self._part_hist[0], self._part_hist[-1]
+        return (x0 - x1) / (t1 - t0) if t1 > t0 else 0.0
+
     def _tick(self) -> None:
-        self.pub_belt.publish(Float64(data=(self.belt_speed if self._belt_run else 0.0)))
+        # _belt_override (when set) temporarily replaces the belt speed -- used to CRAWL the belt
+        # during an on-the-fly grasp (belt still moves, just slowly, so the window is wide).
+        speed = self._belt_override if self._belt_override is not None else self.belt_speed
+        self.pub_belt.publish(Float64(data=(speed if self._belt_run else 0.0)))
         self.pub_gate_a.publish(Float64(data=self._gate_a))
         self.pub_gate_b.publish(Float64(data=self._gate_b))
 
@@ -309,6 +431,7 @@ class SortCell(Node):
         x, y, z = self.feed
         self._part_name = f"wp_{self._counter}"
         self._counter += 1
+        self._part_hist = []   # fresh position history for the new part
         sdf = (
             f"<sdf version='1.8'><model name='{self._part_name}'><pose>{x} {y} {z} 0 0 0</pose>"
             f"<link name='link'><inertial><mass>0.05</mass>"
@@ -397,10 +520,13 @@ class SortCell(Node):
             self.get_logger().info(f"station B classifies part as: {color}")
 
             if color == "green":
-                self.get_logger().info("-> GREEN arm picks into green box")
-                self._belt_run = False          # stop the belt so the part is still during grasp
-                self.green.pick_place()
-                self._belt_run = True
+                if self.on_the_fly:
+                    self._intercept_green()      # belt keeps running; grab the part in motion
+                else:
+                    self.get_logger().info("-> GREEN arm static pick into green box")
+                    self._belt_run = False       # stop the belt so the part is still during grasp
+                    self.green.pick_place()
+                    self._belt_run = True
                 self._settle(); continue
 
             # not green: open gate B, let the part pass to station A (blue)
@@ -427,6 +553,48 @@ class SortCell(Node):
             time.sleep(2.0)
             self._gate_a = GATE_CLOSED
             self._settle()
+
+    def _intercept_green(self) -> None:
+        """Grab the green part while it keeps moving on the belt (belt never stops). Classify has
+        already happened at gate B; here we pre-position the green arm, release the part, and fire a
+        pre-computed velocity-matched trajectory the moment the part reaches the intercept point."""
+        itc = self.itc
+        g = self.green
+        v = float(itc.get("match_speed", 0.03))
+        # home + open, then pre-position above the intercept point while the part is still held
+        g._arm_to(g.home); g._last_joints = list(g.home)
+        g._grip_to(g.g_open)
+        g.move_to(float(itc["x_intercept"]), float(itc["y"]), float(itc["z_approach"]))  # ready pose
+        # release the part, but CRAWL the belt (it keeps moving, just slowly).
+        self.get_logger().info("-> GREEN on-the-fly: crawling belt, releasing part (belt never stops)")
+        self._belt_override = float(itc.get("belt_crawl", -0.06))
+        self._gate_b = GATE_OPEN
+        # POSITION trigger (RTF-independent): poll the part's real x, fire when it reaches x_intercept.
+        x_fire = float(itc["x_intercept"])
+        t0 = time.monotonic()
+        px = None
+        while time.monotonic() - t0 < 15.0:
+            px = self._gz_part_x()
+            if px is not None and px <= x_fire:
+                break
+            time.sleep(0.04)
+        if px is None or px > x_fire:
+            self.get_logger().warn("part never reached intercept point; recovering")
+            self._gate_b = GATE_CLOSED; self._belt_override = None
+            return
+        # Build the co-move NOW from the detected position, predicting the part forward by the
+        # build+send latency so the trajectory's start position matches where the part will be.
+        x0 = px - v * float(itc.get("fire_latency", 0.5))
+        tb = time.monotonic()
+        pts, t_close = g.build_intercept(itc, v, x0)
+        build_s = time.monotonic() - tb
+        px_now = self._gz_part_x()   # where the part actually is now (after the build)
+        self.get_logger().info(
+            f"intercept fire (px={px:.3f} x0={x0:.3f} build={build_s:.2f}s px_after_build={px_now})")
+        g.fire_intercept(pts, t_close)              # co-move grasp + lift while the belt crawls
+        self._belt_override = None                  # part is off the belt -> back to full belt speed
+        self._gate_b = GATE_CLOSED
+        g._place_tail()                             # carry the grasped part into the green box
 
     def _settle(self) -> None:
         # Placed/binned parts are left in place (they accumulate in the boxes/bin).

@@ -32,3 +32,21 @@ green:  # station B (x=1.43), place into green_box at world (1.0, -0.65)
   lift:           {x: 1.43, y: 0.35, z: 0.72}
   place_approach: {x: 1.00, y: -0.65, z: 0.80}
   place:          {x: 1.00, y: -0.65, z: 0.62}
+
+# On-the-fly interception for the green arm at station B (belt keeps running). All x are world;
+# y is the belt centerline (0.35). The part is released from gate B (~1.43) and glides -X. The arm
+# waits above x_intercept and, when the LIVE part x drops to x_intercept, flies a pre-computed
+# velocity-matched trajectory: co-move -X at match_speed while descending to z_grasp, hold (gripper
+# closes), lift. Tune match_speed to the part's OBSERVED speed at the intercept and nudge
+# x_intercept until the 4 cm cube is caught reliably (this is the main tuning knob).
+green_intercept:
+  y:            0.35
+  x_intercept:  1.30    # arm waits above this; fire when live part x <= it; co-move starts here
+  z_approach:   0.72    # pre-position / lift height
+  z_grasp:      0.53    # grasp height (same as the static pick)
+  descend_time: 1.2     # s: co-move while descending z_approach -> z_grasp
+  grasp_time:   1.6     # s: co-move at z_grasp (gripper closes early, then a firm-grip dwell before lift)
+  lift_time:    1.0     # s: co-move while lifting z_grasp -> z_approach
+  belt_crawl:   -0.06   # belt speed during the grasp: the belt keeps MOVING but crawls (wide window)
+  match_speed:  0.10    # m/s: co-move speed matched to the part's MEASURED speed at the intercept (~0.10)
+  fire_latency: 0.1     # s: build+send delay (measured: build ~0.01s) -> predict part forward this much

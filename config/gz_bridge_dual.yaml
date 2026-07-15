@@ -5,6 +5,14 @@
   gz_type_name: "gz.msgs.Clock"
   direction: "GZ_TO_ROS"
 
+# Live poses of the moving models (the workpiece) -> ROS TF, so the orchestrator can track a
+# part's position for on-the-fly interception. Each transform's child_frame_id is the model name.
+- ros_topic_name: "/model_poses"
+  gz_topic_name: "/world/sorting_cell/dynamic_pose/info"
+  ros_type_name: "tf2_msgs/msg/TFMessage"
+  gz_type_name: "gz.msgs.Pose_V"
+  direction: "GZ_TO_ROS"
+
 # Belt speed command (Float64 -> gz TrackController; negative drives parts toward the arms).
 - ros_topic_name: "/conveyor/belt_cmd"
   gz_topic_name: "/model/belt_track/link/base_link/track_cmd_vel"

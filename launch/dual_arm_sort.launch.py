@@ -54,6 +54,7 @@ def generate_launch_description():
                 parameters=[
                     {"use_sim_time": True},
                     {"force_color": LaunchConfiguration("force_color")},
+                    {"on_the_fly": LaunchConfiguration("on_the_fly")},
                 ],
             )
         ],
@@ -66,6 +67,10 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "force_color", default_value="",
                 description="Debug: force every part's color (blue/green/red/yellow); empty = random",
+            ),
+            DeclareLaunchArgument(
+                "on_the_fly", default_value="false",
+                description="Experimental: green arm grabs the part in motion (belt never stops)",
             ),
             cell,
             classifiers,
