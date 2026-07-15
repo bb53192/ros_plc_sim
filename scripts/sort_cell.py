@@ -382,22 +382,28 @@ class SortCell(Node):
             self.get_logger().info(f"=== new part: {color} ===")
             self._spawn_part(color)
 
-            # 1) part rides to station B (green)
+            # The part is classified ONCE, at station B, where it stops cleanly. That single
+            # decision routes it the whole way -- we do NOT re-read at station A. Re-reading at A
+            # was a second failure point: a blurry/off-center frame there sent a correctly-seen
+            # blue part to the unsorted bin.
             if not self._wait(lambda: self._present("b"), timeout=25.0):
                 self.get_logger().warn("part never reached station B; removing & retrying")
                 self._remove_named(self._part_name); time.sleep(0.5); continue
             time.sleep(self.settle_time)
-            cb = self._read_color("b")
-            self.get_logger().info(f"station B sees: {cb}")
+            color = self._read_color("b")
+            if color == "none" and self._present("b"):   # present but unseen -> settle & retry once
+                time.sleep(1.0)
+                color = self._read_color("b")
+            self.get_logger().info(f"station B classifies part as: {color}")
 
-            if cb == "green":
+            if color == "green":
                 self.get_logger().info("-> GREEN arm picks into green box")
                 self._belt_run = False          # stop the belt so the part is still during grasp
                 self.green.pick_place()
                 self._belt_run = True
                 self._settle(); continue
 
-            # 2) not green: open gate B, let it pass to station A (blue)
+            # not green: open gate B, let the part pass to station A (blue)
             self.get_logger().info("-> not green: opening gate B, part passes to station A")
             self._gate_b = GATE_OPEN
             self._wait(lambda: not self._present("b"), timeout=5.0)   # cleared B
@@ -406,17 +412,15 @@ class SortCell(Node):
                 self._gate_b = GATE_CLOSED; self._settle(); continue
             self._gate_b = GATE_CLOSED
             time.sleep(self.settle_time)
-            ca = self._read_color("a")
-            self.get_logger().info(f"station A sees: {ca}")
 
-            if ca == "blue":
+            if color == "blue":
                 self.get_logger().info("-> BLUE arm picks into blue box")
                 self._belt_run = False          # stop the belt so the part is still during grasp
                 self.blue.pick_place()
                 self._belt_run = True
                 self._settle(); continue
 
-            # 3) not blue either: open gate A, part falls into the unsorted bin
+            # neither green nor blue: open gate A, part falls into the unsorted bin
             self.get_logger().info("-> unsorted: opening gate A, part drops into bin")
             self._gate_a = GATE_OPEN
             self._wait(lambda: not self._present("a"), timeout=5.0)
