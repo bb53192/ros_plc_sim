@@ -216,7 +216,7 @@ class SortCell(Node):
     def __init__(self) -> None:
         super().__init__("sort_cell")
         self.declare_parameter("waypoint_file", "")
-        self.declare_parameter("belt_speed", -0.15)
+        self.declare_parameter("belt_speed", -0.25)
         self.declare_parameter("world", "sorting_cell")
         self.declare_parameter("feed_pose", [2.40, 0.35, 0.58])
         self.declare_parameter("present_timeout", 0.5)
