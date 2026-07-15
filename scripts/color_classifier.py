@@ -33,10 +33,10 @@ class ColorClassifier(Node):
         super().__init__("color_classifier")
         self.declare_parameter("image_topic", "/station_a/image")
         self.declare_parameter("output_topic", "/station_a/part_color")
-        self.declare_parameter("roi_frac", 0.4)      # center ROI as a fraction of width/height
+        self.declare_parameter("roi_frac", 0.55)     # center ROI fraction (wide enough for an off-center part)
         self.declare_parameter("sat_min", 80)        # min saturation to count as "colored"
         self.declare_parameter("val_min", 50)        # min value (brightness)
-        self.declare_parameter("min_pixels", 25)     # need at least this many colored pixels
+        self.declare_parameter("min_pixels", 12)     # need at least this many colored pixels (low-res cameras)
         self.image_topic = self.get_parameter("image_topic").value
         self.output_topic = self.get_parameter("output_topic").value
         self.roi_frac = float(self.get_parameter("roi_frac").value)

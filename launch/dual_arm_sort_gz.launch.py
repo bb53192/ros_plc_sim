@@ -29,11 +29,15 @@ from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
 
-def _spawner(name):
+# All controllers are loaded by ONE spawner, sequentially. Firing five separate spawners at
+# once races on the controller_manager and intermittently leaves some controllers
+# unconfigured/absent -- if a gripper controller is missing, the gripper never closes and every
+# grasp fails (arm lifts empty), which cascades into parts piling up off the pick point.
+def _spawner(names):
     return Node(
         package="controller_manager",
         executable="spawner",
-        arguments=[name, "--controller-manager", "/controller_manager",
+        arguments=[*names, "--controller-manager", "/controller_manager",
                    "--controller-manager-timeout", "120"],
     )
 
@@ -105,14 +109,20 @@ def _configure(context):
         output="screen",
     )
 
+    # Two ros2_control systems (16 joints) take longer to initialize than the single-arm cell, so
+    # give the controller_manager time to be fully ready before the (single, sequential) spawner
+    # loads all five controllers. Spawning too early made the first load (jsb) FATAL, which tore
+    # the spawner down and left the grippers absent -> every grasp failed.
     delayed_spawners = TimerAction(
-        period=5.0,
+        period=12.0,
         actions=[
-            _spawner("joint_state_broadcaster"),
-            _spawner("blue_arm_controller"),
-            _spawner("green_arm_controller"),
-            _spawner("blue_gripper_controller"),
-            _spawner("green_gripper_controller"),
+            _spawner([
+                "joint_state_broadcaster",
+                "blue_arm_controller",
+                "green_arm_controller",
+                "blue_gripper_controller",
+                "green_gripper_controller",
+            ]),
         ],
     )
 

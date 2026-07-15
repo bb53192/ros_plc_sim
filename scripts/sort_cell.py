@@ -345,13 +345,23 @@ class SortCell(Node):
         return False
 
     def _read_color(self, station: str) -> str:
-        """Latest stable class at a station (retry past a transient 'none')."""
-        for _ in range(10):
+        """Discard any stale cached color, then majority-vote over the classifier's FRESH
+        readings. Resetting first is essential: under a slow sim the classifier lags, and the
+        previous part's color lingering in the cache was misrouting the next part (e.g. a blue
+        part read as the previous green). Collect enough agreeing fresh samples, or time out."""
+        self._color[station] = "none"
+        votes: dict[str, int] = {}
+        deadline = time.monotonic() + 6.0
+        while time.monotonic() < deadline:
             c = self._color[station]
             if c and c != "none":
-                return c
+                votes[c] = votes.get(c, 0) + 1
+                if sum(votes.values()) >= 8:
+                    break
             time.sleep(0.1)
-        return "other"
+        if not votes:
+            return "none"
+        return max(votes, key=votes.get)
 
     # ------------------------------------------------------------------ sequencer
     def _run(self) -> None:
